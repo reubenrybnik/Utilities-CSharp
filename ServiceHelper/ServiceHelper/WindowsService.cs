@@ -335,7 +335,7 @@ namespace ServiceHelper
 
                 if (arguments.NamedArguments.Contains("UserName"))
                 {
-                    SafeTokenHandle userToken = null;
+                    NativeMethods.SafeTokenHandle userToken = null;
 
                     try
                     {
@@ -587,12 +587,13 @@ namespace ServiceHelper
             try
             {
                 TimeSpan timeToNextTick;
+                ThreadStart tickDelegate = new ThreadStart(Tick);
 
                 do
                 {
                     DateTime tickTime = DateTime.Now;
 
-                    this.serviceTaskThread.Start(Tick);
+                    this.serviceTaskThread.Start(tickDelegate);
 
                     if (!this.serviceTaskThread.Wait(this.serviceImplementation.TimeBetweenTicks))
                     {

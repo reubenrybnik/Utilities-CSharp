@@ -164,7 +164,7 @@ namespace ServiceHelper
                             user = domainUser[1];
                         }
 
-                        SafeTokenHandle userToken;
+                        NativeMethods.SafeTokenHandle userToken;
                         logonSucceeded = NativeMethods.LogonUser(user, domain, this.Password, NativeMethods.LogonType.LOGON32_LOGON_INTERACTIVE, NativeMethods.LogonProvider.LOGON32_PROVIDER_DEFAULT, out userToken);
                         int lastError = Marshal.GetHRForLastWin32Error();
                         userToken.Dispose();
