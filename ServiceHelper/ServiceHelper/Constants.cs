@@ -8,11 +8,6 @@ namespace ServiceHelper
     /// </summary>
     internal static class Constants
     {
-        /// <summary>
-        /// Represents an infinite wait timeout; also defined by Timeout.InfiniteTimeSpan in .NET 4.5 and above.
-        /// </summary>
-        public static readonly TimeSpan InfiniteTimeSpan = TimeSpan.FromMilliseconds(Timeout.Infinite);
-
         #region HResults
 
         /// <summary>

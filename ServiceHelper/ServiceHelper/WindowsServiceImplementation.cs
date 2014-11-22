@@ -56,7 +56,7 @@ namespace ServiceHelper
         /// </summary>
         protected internal virtual TimeSpan TimeBetweenTicks
         {
-            get { return Constants.InfiniteTimeSpan; }
+            get { return ReusableThread.InfiniteTimeSpan; }
         }
 
         /// <summary>

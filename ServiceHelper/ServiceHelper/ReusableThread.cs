@@ -20,10 +20,28 @@ namespace ServiceHelper
     /// </summary>
     public sealed class ReusableThread : IDisposable
     {
-        public static bool HandleExceptions = !Debugger.IsAttached;
+        /// <summary>
+        /// Represents an infinite wait timeout; also defined by <see cref="Timeout.Infinite" />.
+        /// </summary>
+        public const int Infinite = Timeout.Infinite;
+
+        /// <summary>
+        /// Represents an infinite wait timeout; also defined by <see cref="Timeout.InfiniteTimeSpan" /> in .NET 4.5 and above.
+        /// </summary>
+        public static readonly TimeSpan InfiniteTimeSpan = TimeSpan.FromMilliseconds(ReusableThread.Infinite);
+
+        #region Debug Exception Handling
+
+        private static bool handleExceptions = !Debugger.IsAttached;
+
+        public static void AlwaysHandleExceptions()
+        {
+            ReusableThread.handleExceptions = true;
+        }
+
+        #endregion
 
         private readonly string threadName;
-
         private bool isDisposed;
         private ThreadContext threadContext;
 
@@ -49,6 +67,11 @@ namespace ServiceHelper
         /// <param name="threadName">The name to assign to the thread created by this object.</param>
         public ReusableThread(string threadName)
         {
+            if (string.IsNullOrEmpty(threadName))
+            {
+                throw new ArgumentNullException("threadName", "threadName cannot be null or empty.");
+            }
+
             this.threadName = threadName;
         }
 
@@ -81,8 +104,12 @@ namespace ServiceHelper
             {
                 throw new ObjectDisposedException("This reusable thread has been disposed.");
             }
+            if (task == null)
+            {
+                throw new ArgumentNullException("task");
+            }
 
-            if(this.threadContext == null)
+            if (this.threadContext == null)
             {
                 this.threadContext = new ThreadContext(this.threadName);
             }
@@ -102,6 +129,11 @@ namespace ServiceHelper
 
         public bool Wait(int millisecondsTimeout)
         {
+            if (millisecondsTimeout != ReusableThread.Infinite && millisecondsTimeout < 0)
+            {
+                throw new ArgumentOutOfRangeException("millisecondsTimeout", "millisecondsTimeout must be a nonnegative integer or ReusableThread.Infinite (same as Timeout.Infinite).");
+            }
+
             return
             (
                 this.threadContext == null ||
@@ -112,6 +144,11 @@ namespace ServiceHelper
 
         public bool Wait(TimeSpan timeout)
         {
+            if (timeout != ReusableThread.InfiniteTimeSpan && timeout < TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException("timeout", "timeout must be a nonnegative length of time or ReusableThread.InfiniteTimeSpan (same as Timeout.InfiniteTimeSpan).");
+            }
+
             return
             (
                 this.threadContext == null ||
@@ -233,7 +270,7 @@ namespace ServiceHelper
             {
                 while (this.IsAlive)
                 {
-                    if (ReusableThread.HandleExceptions)
+                    if (ReusableThread.handleExceptions)
                     {
                         try
                         {

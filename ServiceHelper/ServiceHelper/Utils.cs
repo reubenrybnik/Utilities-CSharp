@@ -11,7 +11,7 @@ namespace ServiceHelper
         {
             if (string.IsNullOrEmpty(userName))
             {
-                throw new ArgumentNullException("userName");
+                throw new ArgumentNullException("userName", "userName cannot be null or empty.");
             }
 
             Console.Write("Enter the password for user account " + userName + ": ");
@@ -42,7 +42,7 @@ namespace ServiceHelper
         {
             if (string.IsNullOrEmpty(userName))
             {
-                throw new ArgumentNullException("userName");
+                throw new ArgumentNullException("userName", "userName cannot be null or empty.");
             }
 
             Console.Write("Enter the password for user account " + userName + ": ");

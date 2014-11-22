@@ -623,7 +623,7 @@ namespace ServiceHelper
                         {
                             timeToNextTick = this.serviceImplementation.TimeToNextTick;
                         }
-                        else if (this.serviceImplementation.TimeBetweenTicks != Constants.InfiniteTimeSpan)
+                        else if (this.serviceImplementation.TimeBetweenTicks != ReusableThread.InfiniteTimeSpan)
                         {
                             timeToNextTick = this.serviceImplementation.TimeBetweenTicks - (DateTime.Now - tickTime);
                         }
