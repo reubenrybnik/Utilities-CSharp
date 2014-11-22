@@ -54,7 +54,6 @@
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
     <Compile Include="ReusableThread.cs" />
-    <Compile Include="SafeTokenHandle.cs" />
     <Compile Include="TickTimeoutEventArgs.cs" />
     <Compile Include="Utils.cs" />
     <Compile Include="WindowsServiceImplementation.cs" />

@@ -169,6 +169,51 @@ namespace ServiceHelper
             LOGON32_LOGON_UNLOCK = 7
         }
 
+        /// <summary>
+        /// Wraps a handle to a user token.
+        /// </summary>
+        internal class SafeTokenHandle : SafeHandleZeroOrMinusOneIsInvalid
+        {
+            /// <summary>
+            /// Creates a new SafeTokenHandle. This should only be done by P/Invoke.
+            /// </summary>
+            private SafeTokenHandle() : base(true) { }
+
+            /// <summary>
+            /// Provides a <see cref="WindowsIdentity" /> object created from this user token. Depending
+            /// on the type of token, this can be used to impersonate the user. The WindowsIdentity
+            /// class will duplicate the token, so it is safe to use the WindowsIdentity object created by
+            /// this method after disposing this object.
+            /// </summary>
+            /// <returns>a <see cref="WindowsIdentity" /> for the user that this token represents.</returns>
+            /// <exception cref="InvalidOperationException">This object does not contain a valid handle.</exception>
+            /// <exception cref="ObjectDisposedException">This object has been disposed and its token has
+            /// been released.</exception>
+            public WindowsIdentity GetWindowsIdentity()
+            {
+                if (this.IsClosed)
+                {
+                    throw new ObjectDisposedException("The user token has been released.");
+                }
+                if (this.IsInvalid)
+                {
+                    throw new InvalidOperationException("The user token is invalid.");
+                }
+
+                return new WindowsIdentity(this.handle);
+            }
+
+            /// <summary>
+            /// Calls <see cref="NativeMethods.CloseHandle" /> to release this user token.
+            /// </summary>
+            /// <returns><c>true</c> if the function succeeds, <c>false otherwise</c>. To get extended
+            /// error information, call <see cref="Marshal.GetLastError"/>.</returns>
+            protected override bool ReleaseHandle()
+            {
+                return NativeMethods.CloseHandle(this.handle);
+            }
+        }
+
         // TODO: check these values
         /// <summary>
         /// The logon provider to use.
