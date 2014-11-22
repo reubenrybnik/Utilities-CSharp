@@ -12,7 +12,10 @@ namespace ServiceHelperUnitTests
     [TestClass]
     public sealed class ReusableThreadTests
     {
-        private static readonly TimeSpan testWaitTime = TimeSpan.FromSeconds(10);
+        /// <summary>
+        /// No test should ever wait for more than this amount of time without failing.
+        /// </summary>
+        private static readonly TimeSpan testWaitTime = TimeSpan.FromSeconds(5);
 
         #region Setup and Cleanup
 
@@ -25,41 +28,6 @@ namespace ServiceHelperUnitTests
         #endregion
 
         #region Functionality Tests
-
-        #region .ctor
-
-        [TestMethod]
-        public void Ctor_SpecificThreadName_ThreadHasName()
-        {
-            const string expectedThreadName = "UnitTestThread";
-            
-            using (ReusableThread reusableThread = new ReusableThread(expectedThreadName))
-            using (ManualResetEvent testMethodCalledEvent = new ManualResetEvent(false))
-            {
-                ReusableThreadResult<string> threadNameResult = new ReusableThreadResult<string>();
-
-                ThreadStart testMethod = delegate()
-                {
-                    threadNameResult.Result = Thread.CurrentThread.Name;
-                    testMethodCalledEvent.Set();
-                };
-
-                reusableThread.Start(testMethod);
-
-                bool delegateCalled = testMethodCalledEvent.WaitOne(ReusableThreadTests.testWaitTime);
-                string delegateNotCalledFailMessage = string.Format("The delegate was not called within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
-                Assert.IsTrue(delegateCalled, delegateNotCalledFailMessage);
-
-                string threadNameIncorrectFailMessage = string.Format("The created reusable thread does not have name {0}.", expectedThreadName);
-                Assert.AreEqual(expectedThreadName, threadNameResult.Result, threadNameIncorrectFailMessage);
-
-                bool delegateCompleted = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string delegateNotCompletedFailMessage = string.Format("The delegate did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
-                Assert.IsTrue(delegateCompleted, delegateNotCompletedFailMessage);
-            }
-        }
-
-        #endregion
 
         #region Start
 
@@ -150,10 +118,10 @@ namespace ServiceHelperUnitTests
         [TestMethod]
         public void Start_ExceptionThrown_ExceptionReported()
         {
-            ReusableThreadTestException testException = new ReusableThreadTestException();
-
             using (ReusableThread reusableThread = new ReusableThread())
             {
+                ReusableThreadTestException testException = new ReusableThreadTestException();
+
                 ThreadStart testMethod = delegate()
                 {
                     throw testException;
@@ -174,15 +142,36 @@ namespace ServiceHelperUnitTests
 
         #region Wait
 
+        [TestMethod]
+        public void Wait_CalledWhileRunning_Waits()
+        {
+            using (ReusableThread reusableThread = new ReusableThread())
+            {
+                ThreadStart testMethod = delegate()
+                {
+                    reusableThread.Wait();
+                };
+
+                Wait_LongWait_Interrupted(reusableThread, testMethod);
+            }
+        }
+
         #endregion
 
         #region Abort
 
-        #endregion
+        [TestMethod]
+        public void Abort_CalledWhileRunning_ThreadAborted()
+        {
+        }
 
         #endregion
 
-        #region Invalid Argument Tests
+        #endregion
+
+        #region Argument Tests
+
+        #region .ctor
 
         [TestMethod]
         [ExpectedException(typeof(ArgumentNullException))]
@@ -203,6 +192,41 @@ namespace ServiceHelperUnitTests
         }
 
         [TestMethod]
+        public void Ctor_SpecificThreadName_ThreadHasName()
+        {
+            const string expectedThreadName = "UnitTestThread";
+
+            using (ReusableThread reusableThread = new ReusableThread(expectedThreadName))
+            using (ManualResetEvent testMethodCalledEvent = new ManualResetEvent(false))
+            {
+                ReusableThreadResult<string> threadNameResult = new ReusableThreadResult<string>();
+
+                ThreadStart testMethod = delegate()
+                {
+                    threadNameResult.Result = Thread.CurrentThread.Name;
+                    testMethodCalledEvent.Set();
+                };
+
+                reusableThread.Start(testMethod);
+
+                bool delegateCalled = testMethodCalledEvent.WaitOne(ReusableThreadTests.testWaitTime);
+                string delegateNotCalledFailMessage = string.Format("The delegate was not called within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                Assert.IsTrue(delegateCalled, delegateNotCalledFailMessage);
+
+                string threadNameIncorrectFailMessage = string.Format("The created reusable thread does not have name {0}.", expectedThreadName);
+                Assert.AreEqual(expectedThreadName, threadNameResult.Result, threadNameIncorrectFailMessage);
+
+                bool delegateCompleted = reusableThread.Wait(ReusableThreadTests.testWaitTime);
+                string delegateNotCompletedFailMessage = string.Format("The delegate did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                Assert.IsTrue(delegateCompleted, delegateNotCompletedFailMessage);
+            }
+        }
+
+        #endregion
+
+        #region Start
+
+        [TestMethod]
         [ExpectedException(typeof(ArgumentNullException))]
         public void Start_NullAsTask_ExceptionThrown()
         {
@@ -212,43 +236,22 @@ namespace ServiceHelperUnitTests
             }
         }
 
+        #endregion
+
+        #region Wait
+
         [TestMethod]
         [ExpectedException(typeof(ArgumentOutOfRangeException))]
         public void Wait_InvalidNumberAsMillisecondsTimeout_ExceptionThrown()
         {
-            using (ReusableThread reusableThread = new ReusableThread())
-            using (ManualResetEvent testMethodWaitEvent = new ManualResetEvent(false))
+            using(ReusableThread reusableThread = new ReusableThread())
             {
-                ReusableThreadResult<bool> testMethodReleasedResult = new ReusableThreadResult<bool>();
-
                 ThreadStart testMethod = delegate()
                 {
-                    testMethodReleasedResult.Result = testMethodWaitEvent.WaitOne(ReusableThreadTests.testWaitTime);
+                    reusableThread.Wait(-2);
                 };
 
-                reusableThread.Start(testMethod);
-
-                try
-                {
-                    reusableThread.Wait(-2);
-                    testMethodWaitEvent.Set();
-
-                    string exceptionNotThrownFailMessage = "No exception was thrown by ReusableThread.Wait.";
-                    Assert.Fail(exceptionNotThrownFailMessage);
-                }
-                catch
-                {
-                    testMethodWaitEvent.Set();
-
-                    string threadNotReleasedFailMessage = string.Format("The thread was not released within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
-                    Assert.IsTrue(testMethodReleasedResult.Result, threadNotReleasedFailMessage);
-
-                    bool delegateCompleted = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                    string delegateNotCompletedFailMessage = string.Format("The delegate did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
-                    Assert.IsTrue(delegateCompleted, delegateNotCompletedFailMessage);
-
-                    throw;
-                }
+                this.Wait_RunTestMethod(reusableThread, testMethod);
             }
         }
 
@@ -257,44 +260,89 @@ namespace ServiceHelperUnitTests
         public void Wait_InvalidTimeSpanAsTimeout_ExceptionThrown()
         {
             using (ReusableThread reusableThread = new ReusableThread())
-            using (ManualResetEvent testMethodWaitEvent = new ManualResetEvent(false))
             {
-                ReusableThreadResult<bool> testMethodReleasedResult = new ReusableThreadResult<bool>();
+                ThreadStart testMethod = delegate()
+                {
+                    reusableThread.Wait(TimeSpan.FromSeconds(-2));
+                };
+
+                this.Wait_RunTestMethod(reusableThread, testMethod);
+            }
+        }
+
+        [TestMethod]
+        public void Wait_InfiniteWaitAsMillisecondsTimeout_ExceptionNotThrown()
+        {
+            using (ReusableThread reusableThread = new ReusableThread())
+            {
+                ThreadStart testMethod = delegate()
+                {
+                    reusableThread.Wait(ReusableThread.InfiniteWait);
+                };
+
+                Wait_LongWait_Interrupted(reusableThread, testMethod);
+            }
+        }
+
+        [TestMethod]
+        public void Wait_InfiniteWaitAsTimeout_ExceptionNotThrown()
+        {
+            using (ReusableThread reusableThread = new ReusableThread())
+            {
+                ThreadStart testMethod = delegate()
+                {
+                    reusableThread.Wait(ReusableThread.InfiniteWaitTimeSpan);
+                };
+
+                Wait_LongWait_Interrupted(reusableThread, testMethod);
+            }
+        }
+
+        [TestMethod]
+        public void Wait_ZeroAsMillisecondsTimeoutWhileRunning_WaitReturnsFalse()
+        {
+            using (ReusableThread reusableThread = new ReusableThread())
+            {
+                ReusableThreadResult<bool> testMethodResult = new ReusableThreadResult<bool>();
 
                 ThreadStart testMethod = delegate()
                 {
-                    testMethodReleasedResult.Result = testMethodWaitEvent.WaitOne(ReusableThreadTests.testWaitTime);
+                    testMethodResult.Result = reusableThread.Wait(0);
                 };
 
-                reusableThread.Start(testMethod);
+                this.Wait_RunTestMethod(reusableThread, testMethod);
 
-                try
+                string waitReturnedTrueFailMessage = "Wait indicated that the test method completed when it should not have.";
+                Assert.IsFalse(testMethodResult.Result, waitReturnedTrueFailMessage);
+            }
+        }
+
+        [TestMethod]
+        public void Wait_ZeroAsTimeoutWhileRunning_WaitReturnsFalse()
+        {
+            using (ReusableThread reusableThread = new ReusableThread())
+            {
+                ReusableThreadResult<bool> testMethodResult = new ReusableThreadResult<bool>();
+
+                ThreadStart testMethod = delegate()
                 {
-                    reusableThread.Wait(TimeSpan.FromSeconds(-2));
-                }
-                catch (ArgumentOutOfRangeException)
-                {
-                    testMethodWaitEvent.Set();
+                    testMethodResult.Result = reusableThread.Wait(TimeSpan.Zero);
+                };
 
-                    bool delegateCompleted = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                    string delegateNotCompletedFailMessage = string.Format("The delegate did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
-                    Assert.IsTrue(delegateCompleted, delegateNotCompletedFailMessage);
+                this.Wait_RunTestMethod(reusableThread, testMethod);
 
-                    string threadNotReleasedFailMessage = string.Format("The delegate was not released within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
-                    Assert.IsTrue(testMethodReleasedResult.Result, threadNotReleasedFailMessage);
-
-                    throw;
-                }
-                finally
-                {
-                    testMethodWaitEvent.Set();
-                }
+                string waitReturnedTrueFailMessage = "Wait indicated that the test method completed when it should not have.";
+                Assert.IsFalse(testMethodResult.Result, waitReturnedTrueFailMessage);
             }
         }
 
         #endregion
 
-        #region Invalid State Tests
+        #endregion
+
+        #region State Tests
+
+        #region Start
 
         [TestMethod]
         [ExpectedException(typeof(InvalidOperationException))]
@@ -348,6 +396,121 @@ namespace ServiceHelperUnitTests
                 finally
                 {
                     testMethod1WaitEvent.Set();
+                }
+            }
+        }
+
+        [TestMethod]
+        [ExpectedException(typeof(ObjectDisposedException))]
+        public void Start_CalledAfterDisposed_ExceptionThrown()
+        {
+            ReusableThread reusableThread = new ReusableThread();
+            reusableThread.Dispose();
+
+            ThreadStart testMethod = delegate()
+            {
+            };
+
+            reusableThread.Start(testMethod);
+        }
+
+        #endregion
+
+        #region Wait
+
+        public void Wait_CalledBeforeRunning_ReturnsTrue()
+        {
+        }
+
+        public void Wait_CalledAfterRunning_ReturnsTrue()
+        {
+        }
+
+        #endregion
+
+        #region Abort
+
+        [TestMethod]
+        public void Abort_CalledBeforeRunning_ExceptionNotThrown()
+        {
+        }
+
+        [TestMethod]
+        public void Abort_CalledAfterRunning_ExceptionNotThrown()
+        {
+        }
+
+        #endregion
+
+        #endregion
+
+        #region Helpers
+
+        /// <summary>
+        /// When testing Wait methods, in most cases it is undesirable for both the test method and the method
+        /// being invoked by the reusable thread to actually wait for a long period of time. Use
+        /// <see cref="Thread.Interrupt" /> to make sure that a call to Wait put the thread into a
+        /// <see cref="ThreadState.WaitSleepJoin"/> state without actually doing the whole wait.
+        /// </summary>
+        /// <param name="reusableThread">The reusable thread being tested.</param>
+        /// <param name="longWaitTestMethod">A test method that, when invoked, would normally cause the test
+        /// to wait for a long time.</param>
+        private void Wait_LongWait_Interrupted(ReusableThread reusableThread, ThreadStart longWaitTestMethod)
+        {
+            ReusableThreadResult<Exception> interruptableThreadMethodResult = new ReusableThreadResult<Exception>();
+
+            ThreadStart interruptableThreadMethod = delegate()
+            {
+                try
+                {
+                    this.Wait_RunTestMethod(reusableThread, longWaitTestMethod);
+                }
+                catch (Exception ex)
+                {
+                    interruptableThreadMethodResult.Result = ex;
+                }
+            };
+
+            Thread interruptableThread = new Thread(interruptableThreadMethod);
+            interruptableThread.Start();
+            interruptableThread.Interrupt();
+
+            bool interruptableThreadCompleted = interruptableThread.Join(ReusableThreadTests.testWaitTime);
+            string interruptableThreadNotCompletedFailMessage = "The interruptable thread did not complete.";
+            Assert.IsTrue(interruptableThreadCompleted, interruptableThreadNotCompletedFailMessage);
+
+            Type expectedExceptionType = typeof(ThreadInterruptedException);
+            string exceptionTypeIncorrectFailMessage = string.Format("The interruptable thread caught an exception other than type {0}.", expectedExceptionType.Name);
+            Assert.IsInstanceOfType(interruptableThreadMethodResult.Result, expectedExceptionType);
+        }
+
+        private void Wait_RunTestMethod(ReusableThread reusableThread, ThreadStart testMethod)
+        {
+            using (ManualResetEvent testMethodWaitEvent = new ManualResetEvent(false))
+            {
+                ReusableThreadResult<bool> testMethodReleasedResult = new ReusableThreadResult<bool>();
+
+                ThreadStart startMethod = delegate()
+                {
+                    testMethodReleasedResult.Result = testMethodWaitEvent.WaitOne(ReusableThreadTests.testWaitTime);
+                };
+
+                reusableThread.Start(startMethod);
+
+                try
+                {
+                    testMethod();
+                }
+                finally
+                {
+                    testMethodWaitEvent.Set();
+
+                    bool delegateCompleted = reusableThread.Wait(ReusableThreadTests.testWaitTime);
+                    string delegateNotCompletedFailMessage = string.Format("The delegate did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                    Assert.IsTrue(delegateCompleted, delegateNotCompletedFailMessage);
+
+                    string threadNotReleasedFailMessage = string.Format("The thread was not released within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                    Assert.IsTrue(testMethodReleasedResult.Result, threadNotReleasedFailMessage);
                 }
             }
         }

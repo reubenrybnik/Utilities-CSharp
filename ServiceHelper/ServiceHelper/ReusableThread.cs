@@ -23,12 +23,12 @@ namespace ServiceHelper
         /// <summary>
         /// Represents an infinite wait timeout; also defined by <see cref="Timeout.Infinite" />.
         /// </summary>
-        public const int Infinite = Timeout.Infinite;
+        public const int InfiniteWait = Timeout.Infinite;
 
         /// <summary>
         /// Represents an infinite wait timeout; also defined by <see cref="Timeout.InfiniteTimeSpan" /> in .NET 4.5 and above.
         /// </summary>
-        public static readonly TimeSpan InfiniteTimeSpan = TimeSpan.FromMilliseconds(ReusableThread.Infinite);
+        public static readonly TimeSpan InfiniteWaitTimeSpan = TimeSpan.FromMilliseconds(ReusableThread.InfiniteWait);
 
         #region Debug Exception Handling
 
@@ -87,10 +87,7 @@ namespace ServiceHelper
 
         private void Dispose(bool disposing)
         {
-            if (this.threadContext != null)
-            {
-                this.threadContext.Dispose();
-            }
+            this.Abort();
         }
 
         ~ReusableThread()
@@ -129,7 +126,7 @@ namespace ServiceHelper
 
         public bool Wait(int millisecondsTimeout)
         {
-            if (millisecondsTimeout != ReusableThread.Infinite && millisecondsTimeout < 0)
+            if (millisecondsTimeout != ReusableThread.InfiniteWait && millisecondsTimeout < 0)
             {
                 throw new ArgumentOutOfRangeException("millisecondsTimeout", "millisecondsTimeout must be a nonnegative integer or ReusableThread.Infinite (same as Timeout.Infinite).");
             }
@@ -144,7 +141,7 @@ namespace ServiceHelper
 
         public bool Wait(TimeSpan timeout)
         {
-            if (timeout != ReusableThread.InfiniteTimeSpan && timeout < TimeSpan.Zero)
+            if (timeout != ReusableThread.InfiniteWaitTimeSpan && timeout < TimeSpan.Zero)
             {
                 throw new ArgumentOutOfRangeException("timeout", "timeout must be a nonnegative length of time or ReusableThread.InfiniteTimeSpan (same as Timeout.InfiniteTimeSpan).");
             }
@@ -159,7 +156,10 @@ namespace ServiceHelper
 
         public void Abort()
         {
-            this.threadContext.Dispose();
+            if (this.threadContext != null)
+            {
+                this.threadContext.Dispose();
+            }
         }
 
         private sealed class ThreadContext : IAsyncResult, IDisposable
