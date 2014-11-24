@@ -50,6 +50,7 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
+    <Compile Include="AssemblyInitCleanup.cs" />
     <Compile Include="ReusableThreadTests.cs" />
   </ItemGroup>
   <ItemGroup>
