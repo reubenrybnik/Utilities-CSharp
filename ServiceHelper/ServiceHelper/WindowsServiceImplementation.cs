@@ -82,41 +82,80 @@ namespace ServiceHelper
 
         #region Logging
 
+        /// <summary>
+        /// Logs a debug message (calls <see cref="Console.WriteLine" />).
+        /// </summary>
+        /// <param name="message">The message to log.</param>
         protected void DebugLog(string message)
         {
             Console.WriteLine(message);
         }
 
-        protected void DebugLog(string message, params object[] args)
+        /// <summary>
+        /// Logs a debug message (calls <see cref="Console.WriteLine" />).
+        /// </summary>
+        /// <param name="format">The format of the message to log.</param>
+        /// <param name="args">The objects to write using <paramref name="format" /></param>
+        protected void DebugLog(string format, params object[] args)
         {
-            Console.WriteLine(message, args);
+            Console.WriteLine(format, args);
         }
 
+        /// <summary>
+        /// Logs an informational message (calls <see cref="Trace.TraceInformation" />).
+        /// </summary>
+        /// <param name="format">The format of the message to log.</param>
+        /// <param name="args">The objects to write using <paramref name="format" /></param>
         protected void Log(string message)
         {
             Trace.TraceInformation(message);
         }
 
+        /// <summary>
+        /// Logs an informational message (calls <see cref="Trace.TraceInformation" />).
+        /// </summary>
+        /// <param name="format">The format of the message to log.</param>
+        /// <param name="args">The objects to write using <paramref name="format" /></param>
         protected void Log(string format, params object[] args)
         {
             Trace.TraceInformation(format, args);
         }
 
+        /// <summary>
+        /// Logs a warning (calls <see cref="Trace.TraceWarning" />).
+        /// </summary>
+        /// <param name="format">The format of the message to log.</param>
+        /// <param name="args">The objects to write using <paramref name="format" /></param>
         protected void LogWarning(string message)
         {
             Trace.TraceWarning(message);
         }
 
+        /// <summary>
+        /// Logs a warning (calls <see cref="Trace.TraceWarning" />).
+        /// </summary>
+        /// <param name="format">The format of the message to log.</param>
+        /// <param name="args">The objects to write using <paramref name="format" /></param>
         protected void LogWarning(string format, params object[] args)
         {
             Trace.TraceWarning(format, args);
         }
 
+        /// <summary>
+        /// Logs an error (calls <see cref="Trace.TraceError" />).
+        /// </summary>
+        /// <param name="format">The format of the message to log.</param>
+        /// <param name="args">The objects to write using <paramref name="format" /></param>
         protected void LogError(string message)
         {
             Trace.TraceError(message);
         }
 
+        /// <summary>
+        /// Logs an error (calls <see cref="Trace.TraceError" />).
+        /// </summary>
+        /// <param name="format">The format of the message to log.</param>
+        /// <param name="args">The objects to write using <paramref name="format" /></param>
         protected void LogError(string format, params object[] args)
         {
             Trace.TraceError(format, args);
@@ -128,11 +167,22 @@ namespace ServiceHelper
 
         private WaitHandle serviceStopEvent;
 
-        public WaitHandle ServiceStopEvent
+#if DEBUG
+        /// <summary>
+        /// The event that is used to test whether the service needs to be stopped or <c>null</c> if no such
+        /// event has been supplied to this object. This property should not be used outside of
+        /// <see cref="WindowsServiceImplementation.Tick" /> and should not be disposed.
+        /// </summary>
+        internal WaitHandle ServiceStopEvent
         {
             get { return this.serviceStopEvent; }
         }
+#endif
 
+        /// <summary>
+        /// Allows the service stop event to be set.
+        /// </summary>
+        /// <param name="serviceStopEvent">The event to use as the service stop event.</param>
         internal void SetServiceStopEvent(WaitHandle serviceStopEvent)
         {
             this.serviceStopEvent = serviceStopEvent;
@@ -148,17 +198,17 @@ namespace ServiceHelper
         }
 
         /// <summary>
-        /// Can be called instead of <see cref="Thread.Sleep" /> to wake early if a service stop
-        /// is requested.
+        /// Can be called instead of <see cref="Thread.Sleep" /> to wake early if a service stop is requested.
         /// </summary>
         /// <param name="sleepTime">The amount of time to sleep the thread.</param>
-        /// <returns><c>true</c> if a service stop has been requested during the sleep, <c>false</c>
-        /// otherwise</returns>
+        /// <returns><c>true</c> if a service stop has been requested during the sleep, <c>false</c> otherwise</returns>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="sleepTime"/> is nonnegative and
+        /// non-infinite.</exception>
         protected bool WakeOnStopRequested(TimeSpan sleepTime)
         {
-            if(sleepTime < TimeSpan.Zero)
+            if (sleepTime != ReusableThread.InfiniteWaitTimeSpan && sleepTime < TimeSpan.Zero)
             {
-                throw new ArgumentOutOfRangeException("sleepTime", "Sleep time must be positive.");
+                throw new ArgumentOutOfRangeException("sleepTime", "sleepTime must be a nonnegative length of time or ReusableThread.InfiniteTimeSpan (same as Timeout.InfiniteTimeSpan).");
             }
 
             if (this.serviceStopEvent != null)
@@ -176,11 +226,22 @@ namespace ServiceHelper
             }
         }
 
+        /// <summary>
+        /// Can be called instead of <see cref="WaitHandle" /> wait methods to wake if any event occurs or a
+        /// service stop is requested.
+        /// </summary>
+        /// <param name="timeout">The amount of time to wait for an event to occur.</param>
+        /// <param name="waitHandles">A set of wait handles to wait on in addition to the service stop event.</param>
+        /// <returns>The index of the wait handle for the event that occurred, waitHandles.Length if the
+        /// event that occurred was a service stop event, or <see cref="WaitHandle.WaitTimeout"/> if no event
+        /// occurred within the specified timeout.</returns>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="timeout"/> is nonnegative and
+        /// non-infinite.</exception>
         protected int WakeOnStopRequested(TimeSpan timeout, params WaitHandle[] waitHandles)
         {
-            if (timeout < TimeSpan.Zero)
+            if (timeout != ReusableThread.InfiniteWaitTimeSpan && timeout < TimeSpan.Zero)
             {
-                throw new ArgumentOutOfRangeException("timeout", "Timeout must be positive.");
+                throw new ArgumentOutOfRangeException("timeout", "timeout must be a nonnegative length of time or ReusableThread.InfiniteTimeSpan (same as Timeout.InfiniteTimeSpan).");
             }
             if (waitHandles == null)
             {
@@ -196,14 +257,14 @@ namespace ServiceHelper
             {
                 concatenatedWaitHandles = new WaitHandle[waitHandles.Length + 1];
                 waitHandles.CopyTo(concatenatedWaitHandles, 0);
-                waitHandles[waitHandles.Length] = this.serviceStopEvent;
+                concatenatedWaitHandles[waitHandles.Length] = this.serviceStopEvent;
             }
             else
             {
                 concatenatedWaitHandles = waitHandles;
             }
 
-            return WaitHandle.WaitAny(concatenatedWaitHandles);
+            return WaitHandle.WaitAny(concatenatedWaitHandles, timeout);
         }
 
         /// <summary>
@@ -222,6 +283,9 @@ namespace ServiceHelper
         /// Can be called instead of <see cref="Thread.Sleep" /> to abort the current thread if a service
         /// stop is requested.
         /// </summary>
+        /// <param name="sleepTime">The amount of time to sleep the thread.</param>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="sleepTime"/> is nonnegative and
+        /// non-infinite.</exception>
         /// <exception cref="ThreadAbortException">Thrown if a service stop has been requested. This exception
         /// will automatically be re-thrown at the end of any catch block that does not call
         /// <see cref="Thread.ResetAbort" />. It is safe to allow this exception to be thrown out of the
@@ -234,6 +298,19 @@ namespace ServiceHelper
             }
         }
 
+        /// Can be called instead of <see cref="WaitHandle" /> wait methods to wait for an event to occur and abort
+        /// the thread if a service stop is requested.
+        /// </summary>
+        /// <param name="timeout">The amount of time to wait for an event to occur.</param>
+        /// <param name="waitHandles">A set of wait handles to wait on.</param>
+        /// <returns>The index of the wait handle for the event that occurred or <see cref="WaitHandle.WaitTimeout"/>
+        /// if no event occurred within the specified timeout.</returns>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="timeout"/> is nonnegative and
+        /// non-infinite.</exception>
+        /// <exception cref="ThreadAbortException">Thrown if a service stop has been requested. This exception
+        /// will automatically be re-thrown at the end of any catch block that does not call
+        /// <see cref="Thread.ResetAbort" />. It is safe to allow this exception to be thrown out of the
+        /// <see cref="WindowsServiceImplementation.Tick" /> method.</exception>
         protected int AbortOnStopRequested(TimeSpan timeout, params WaitHandle[] waitHandles)
         {
             int waitResult = this.AbortOnStopRequested(timeout, waitHandles);

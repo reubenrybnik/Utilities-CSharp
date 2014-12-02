@@ -1,28 +1,17 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ServiceHelper;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace ServiceHelperUnitTests
 {
+    /// <summary>
+    /// Unit tests for the ReusableThread class.
+    /// </summary>
     [TestClass]
     public sealed class ReusableThreadTests
     {
-        /// <summary>
-        /// No test should ever wait for more than this amount of time without failing.
-        /// </summary>
-        private static readonly TimeSpan testWaitTime = TimeSpan.FromSeconds(5);
-
-        /// <summary>
-        /// Tests should wait at least this long to be safe.
-        /// </summary>
-        private const int minWaitTimeMilliseconds = 500;
-
         #region Functionality Tests
 
         #region Start
@@ -36,7 +25,7 @@ namespace ServiceHelperUnitTests
             using (ReusableThread reusableThread = new ReusableThread())
             using (ManualResetEvent testMethodCalledEvent = new ManualResetEvent(false))
             {
-                ReusableThreadResult<int> threadIdResult = new ReusableThreadResult<int>();
+                ThreadResult<int> threadIdResult = new ThreadResult<int>();
 
                 ThreadStart testMethod = delegate()
                 {
@@ -46,16 +35,16 @@ namespace ServiceHelperUnitTests
 
                 reusableThread.Start(testMethod);
 
-                bool testMethodCalled = testMethodCalledEvent.WaitOne(ReusableThreadTests.testWaitTime);
-                string testMethodNotCalledFailMessage = string.Format("The test method was not called within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethodCalled = testMethodCalledEvent.WaitOne(TestConstants.MaxWaitTime);
+                string testMethodNotCalledFailMessage = string.Format("The test method was not called within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethodCalled, testMethodNotCalledFailMessage);
 
                 // main test condition
                 string threadNotDifferentFailMessage = "The test method's thread ID was identical to this thread's ID.";
                 Assert.AreNotEqual(Thread.CurrentThread.ManagedThreadId, threadIdResult.Result, threadNotDifferentFailMessage);
 
-                bool testMethodCompleted = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethodCompleted = reusableThread.Wait(TestConstants.MaxWaitTime);
+                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethodCompleted, testMethodNotCompletedFailMessage);
             }
         }
@@ -70,7 +59,7 @@ namespace ServiceHelperUnitTests
             using (ManualResetEvent testMethod1CalledEvent = new ManualResetEvent(false))
             using (ManualResetEvent testMethod2CalledEvent = new ManualResetEvent(false))
             {
-                ReusableThreadResult<Thread> thread1Result = new ReusableThreadResult<Thread>();
+                ThreadResult<Thread> thread1Result = new ThreadResult<Thread>();
 
                 ThreadStart testMethod1 = delegate()
                 {
@@ -78,7 +67,7 @@ namespace ServiceHelperUnitTests
                     testMethod1CalledEvent.Set();
                 };
 
-                ReusableThreadResult<Thread> thread2Result = new ReusableThreadResult<Thread>();
+                ThreadResult<Thread> thread2Result = new ThreadResult<Thread>();
 
                 ThreadStart testMethod2 = delegate()
                 {
@@ -88,30 +77,30 @@ namespace ServiceHelperUnitTests
 
                 reusableThread.Start(testMethod1);
 
-                bool testMethod1Called = testMethod1CalledEvent.WaitOne(testWaitTime);
-                string testMethod1NotCalledFailMessage = string.Format("Test method 1 was not called within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethod1Called = testMethod1CalledEvent.WaitOne(TestConstants.MaxWaitTime);
+                string testMethod1NotCalledFailMessage = string.Format("Test method 1 was not called within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethod1Called, testMethod1NotCalledFailMessage);
 
                 string thread1NotDifferentFailMessage = "Test method 1's thread was identical to this thread.";
                 Assert.AreNotSame(Thread.CurrentThread, thread1Result.Result, thread1NotDifferentFailMessage);
 
-                bool testMethod1Completed = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string testMethod1NotCompletedFailMessage = string.Format("Test method 1 did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethod1Completed = reusableThread.Wait(TestConstants.MaxWaitTime);
+                string testMethod1NotCompletedFailMessage = string.Format("Test method 1 did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethod1Completed, testMethod1NotCompletedFailMessage);
 
                 testMethod1CalledEvent.Reset();
                 reusableThread.Start(testMethod2);
 
-                bool testMethod2Called = testMethod2CalledEvent.WaitOne(testWaitTime);
-                string testMethod2NotCalledFailMessage = string.Format("Test method 2 was not called within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethod2Called = testMethod2CalledEvent.WaitOne(TestConstants.MaxWaitTime);
+                string testMethod2NotCalledFailMessage = string.Format("Test method 2 was not called within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethod2Called, testMethod2NotCalledFailMessage);
 
                 // main test condition
                 string thread2NotSameAsThread1FailMessage = "Test method 2's thread was different from test method 1's thread.";
                 Assert.AreSame(thread1Result.Result, thread2Result.Result, thread2NotSameAsThread1FailMessage);
 
-                bool testMethod2Completed = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string testMethod2NotCompletedFailMessage = string.Format("Test method 2 did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethod2Completed = reusableThread.Wait(TestConstants.MaxWaitTime);
+                string testMethod2NotCompletedFailMessage = string.Format("Test method 2 did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethod2Completed, testMethod2NotCompletedFailMessage);
 
                 // main test condition
@@ -131,16 +120,16 @@ namespace ServiceHelperUnitTests
             using (ManualResetEvent testMethod1CalledEvent = new ManualResetEvent(false))
             using (ManualResetEvent testMethod2CalledEvent = new ManualResetEvent(false))
             {
-                ReusableThreadResult<Thread> thread1Result = new ReusableThreadResult<Thread>();
+                ThreadResult<Thread> thread1Result = new ThreadResult<Thread>();
 
                 ThreadStart testMethod1 = delegate()
                 {
                     thread1Result.Result = Thread.CurrentThread;
                     testMethod1CalledEvent.Set();
-                    Thread.Sleep(ReusableThreadTests.testWaitTime);
+                    Thread.Sleep(TestConstants.MaxWaitTime);
                 };
 
-                ReusableThreadResult<Thread> thread2Result = new ReusableThreadResult<Thread>();
+                ThreadResult<Thread> thread2Result = new ThreadResult<Thread>();
 
                 ThreadStart testMethod2 = delegate()
                 {
@@ -150,14 +139,14 @@ namespace ServiceHelperUnitTests
 
                 reusableThread.Start(testMethod1);
 
-                bool testMethod1Called = testMethod1CalledEvent.WaitOne(testWaitTime);
-                string testMethod1NotCalledFailMessage = string.Format("Test method 1 was not called within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethod1Called = testMethod1CalledEvent.WaitOne(TestConstants.MaxWaitTime);
+                string testMethod1NotCalledFailMessage = string.Format("Test method 1 was not called within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethod1Called, testMethod1NotCalledFailMessage);
 
                 reusableThread.Abort();
 
-                bool testMethod1Completed = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string testMethod1NotCompletedFailMessage = string.Format("Test method 1 did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethod1Completed = reusableThread.Wait(TestConstants.MaxWaitTime);
+                string testMethod1NotCompletedFailMessage = string.Format("Test method 1 did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethod1Completed, testMethod1NotCompletedFailMessage);
 
                 Type expectedExceptionType = typeof(ThreadAbortException);
@@ -167,16 +156,16 @@ namespace ServiceHelperUnitTests
                 testMethod1CalledEvent.Reset();
                 reusableThread.Start(testMethod2);
 
-                bool testMethod2Called = testMethod2CalledEvent.WaitOne(testWaitTime);
-                string testMethod2NotCalledFailMessage = string.Format("Test method 2 was not called within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethod2Called = testMethod2CalledEvent.WaitOne(TestConstants.MaxWaitTime);
+                string testMethod2NotCalledFailMessage = string.Format("Test method 2 was not called within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethod2Called, testMethod2NotCalledFailMessage);
 
                 // main test condition
                 string thread2SameAsThread1FailMessage = "Test method 2's thread was the same as test method 1's thread.";
                 Assert.AreNotSame(thread1Result.Result, thread2Result.Result, thread2SameAsThread1FailMessage);
 
-                bool testMethod2Completed = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string testMethod2NotCompletedFailMessage = string.Format("Test method 2 did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethod2Completed = reusableThread.Wait(TestConstants.MaxWaitTime);
+                string testMethod2NotCompletedFailMessage = string.Format("Test method 2 did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethod2Completed, testMethod2NotCompletedFailMessage);
 
                 // main test condition
@@ -227,11 +216,11 @@ namespace ServiceHelperUnitTests
         {
             using (ReusableThread reusableThread = new ReusableThread())
             {
-                ReusableThreadResult<bool> waitResult = new ReusableThreadResult<bool>();
+                ThreadResult<bool> waitResult = new ThreadResult<bool>();
 
                 ThreadStart testMethod = delegate()
                 {
-                    waitResult.Result = reusableThread.Wait(ReusableThreadTests.minWaitTimeMilliseconds);
+                    waitResult.Result = reusableThread.Wait(TestConstants.MinWaitTimeMilliseconds);
                 };
 
                 this.Wait_RunTestMethod(reusableThread, testMethod);
@@ -252,13 +241,13 @@ namespace ServiceHelperUnitTests
             {
                 ThreadStart testMethod = delegate()
                 {
-                    Thread.Sleep(ReusableThreadTests.minWaitTimeMilliseconds);
+                    Thread.Sleep(TestConstants.MinWaitTimeMilliseconds);
                 };
 
                 reusableThread.Start(testMethod);
 
                 // main test condition
-                bool waitCompleted = reusableThread.Wait(ReusableThreadTests.testWaitTime);
+                bool waitCompleted = reusableThread.Wait(TestConstants.MaxWaitTime);
                 string waitReturnedFalseFailMessage = "Wait indicated that the test method did not complete when it should have.";
                 Assert.IsTrue(waitCompleted, waitReturnedFalseFailMessage);
             }
@@ -278,14 +267,14 @@ namespace ServiceHelperUnitTests
             using (ReusableThread reusableThread = new ReusableThread())
             using (AutoResetEvent testMethodCalledEvent = new AutoResetEvent(false))
             {
-                ReusableThreadResult<bool> threadAbortedResult = new ReusableThreadResult<bool>();
+                ThreadResult<bool> threadAbortedResult = new ThreadResult<bool>();
 
                 ThreadStart testMethod = delegate()
                 {
                     try
                     {
                         testMethodCalledEvent.Set();
-                        Thread.Sleep(ReusableThreadTests.testWaitTime);
+                        Thread.Sleep(TestConstants.MaxWaitTime);
                     }
                     catch (ThreadAbortException)
                     {
@@ -299,14 +288,14 @@ namespace ServiceHelperUnitTests
 
                 reusableThread.Start(testMethod);
 
-                bool testMethodCalled = testMethodCalledEvent.WaitOne(ReusableThreadTests.testWaitTime);
-                string testMethodNotCalledFailMessage = string.Format("The test method was not called within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethodCalled = testMethodCalledEvent.WaitOne(TestConstants.MaxWaitTime);
+                string testMethodNotCalledFailMessage = string.Format("The test method was not called within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethodCalled, testMethodNotCalledFailMessage);
 
                 reusableThread.Abort();
 
-                bool testMethodResumed = testMethodCalledEvent.WaitOne(ReusableThreadTests.testWaitTime);
-                string testMethodNotResumedFailMessage = string.Format("The test method did not resume within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethodResumed = testMethodCalledEvent.WaitOne(TestConstants.MaxWaitTime);
+                string testMethodNotResumedFailMessage = string.Format("The test method did not resume within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethodResumed, testMethodNotResumedFailMessage);
 
                 // main test condition
@@ -333,7 +322,7 @@ namespace ServiceHelperUnitTests
         {
             using (ReusableThread reusableThread = new ReusableThread())
             {
-                ReusableThreadTestException testException = new ReusableThreadTestException();
+                TestException testException = new TestException();
 
                 ThreadStart testMethod = delegate()
                 {
@@ -342,8 +331,8 @@ namespace ServiceHelperUnitTests
 
                 reusableThread.Start(testMethod);
 
-                bool testMethodCompleted = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethodCompleted = reusableThread.Wait(TestConstants.MaxWaitTime);
+                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethodCompleted, testMethodNotCompletedFailMessage);
 
                 // main test condition
@@ -371,7 +360,7 @@ namespace ServiceHelperUnitTests
             using (ReusableThread reusableThread = new ReusableThread(expectedThreadName))
             using (ManualResetEvent testMethodCalledEvent = new ManualResetEvent(false))
             {
-                ReusableThreadResult<string> threadNameResult = new ReusableThreadResult<string>();
+                ThreadResult<string> threadNameResult = new ThreadResult<string>();
 
                 ThreadStart testMethod = delegate()
                 {
@@ -381,16 +370,16 @@ namespace ServiceHelperUnitTests
 
                 reusableThread.Start(testMethod);
 
-                bool testMethodCalled = testMethodCalledEvent.WaitOne(ReusableThreadTests.testWaitTime);
-                string testMethodNotCalledFailMessage = string.Format("The test method was not called within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethodCalled = testMethodCalledEvent.WaitOne(TestConstants.MaxWaitTime);
+                string testMethodNotCalledFailMessage = string.Format("The test method was not called within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethodCalled, testMethodNotCalledFailMessage);
 
                 // main test condition
                 string threadNameIncorrectFailMessage = string.Format("The created reusable thread does not have name {0}.", expectedThreadName);
                 Assert.AreEqual(expectedThreadName, threadNameResult.Result, threadNameIncorrectFailMessage);
 
-                bool testMethodCompleted = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethodCompleted = reusableThread.Wait(TestConstants.MaxWaitTime);
+                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethodCompleted, testMethodNotCompletedFailMessage);
             }
         }
@@ -406,7 +395,7 @@ namespace ServiceHelperUnitTests
             using (ReusableThread reusableThread = new ReusableThread(expectedThreadName))
             using (ManualResetEvent testMethodCalledEvent = new ManualResetEvent(false))
             {
-                ReusableThreadResult<string> threadNameResult = new ReusableThreadResult<string>();
+                ThreadResult<string> threadNameResult = new ThreadResult<string>();
 
                 ThreadStart testMethod = delegate()
                 {
@@ -416,16 +405,16 @@ namespace ServiceHelperUnitTests
 
                 reusableThread.Start(testMethod);
 
-                bool testMethodCalled = testMethodCalledEvent.WaitOne(ReusableThreadTests.testWaitTime);
-                string testMethodNotCalledFailMessage = string.Format("The test method was not called within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethodCalled = testMethodCalledEvent.WaitOne(TestConstants.MaxWaitTime);
+                string testMethodNotCalledFailMessage = string.Format("The test method was not called within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethodCalled, testMethodNotCalledFailMessage);
 
                 // main test condition
                 string threadNameIncorrectFailMessage = string.Format("The created reusable thread does not have name {0}.", expectedThreadName);
                 Assert.AreEqual(expectedThreadName, threadNameResult.Result, threadNameIncorrectFailMessage);
 
-                bool testMethodCompleted = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethodCompleted = reusableThread.Wait(TestConstants.MaxWaitTime);
+                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethodCompleted, testMethodNotCompletedFailMessage);
             }
         }
@@ -442,7 +431,7 @@ namespace ServiceHelperUnitTests
             using (ReusableThread reusableThread = new ReusableThread(expectedThreadName))
             using (ManualResetEvent testMethodCalledEvent = new ManualResetEvent(false))
             {
-                ReusableThreadResult<string> threadNameResult = new ReusableThreadResult<string>();
+                ThreadResult<string> threadNameResult = new ThreadResult<string>();
 
                 ThreadStart testMethod = delegate()
                 {
@@ -452,16 +441,16 @@ namespace ServiceHelperUnitTests
 
                 reusableThread.Start(testMethod);
 
-                bool testMethodCalled = testMethodCalledEvent.WaitOne(ReusableThreadTests.testWaitTime);
-                string testMethodNotCalledFailMessage = string.Format("The test method was not called within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethodCalled = testMethodCalledEvent.WaitOne(TestConstants.MaxWaitTime);
+                string testMethodNotCalledFailMessage = string.Format("The test method was not called within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethodCalled, testMethodNotCalledFailMessage);
 
                 // main test condition
                 string threadNameIncorrectFailMessage = string.Format("The created reusable thread does not have name {0}.", expectedThreadName);
                 Assert.AreEqual(expectedThreadName, threadNameResult.Result, threadNameIncorrectFailMessage);
 
-                bool testMethodCompleted = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethodCompleted = reusableThread.Wait(TestConstants.MaxWaitTime);
+                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethodCompleted, testMethodNotCompletedFailMessage);
             }
         }
@@ -475,7 +464,7 @@ namespace ServiceHelperUnitTests
         /// </summary>
         [TestMethod]
         [ExpectedException(typeof(ArgumentNullException), "Start accepted a null test method.")]
-        public void Start_NullAsTask_ExceptionThrown()
+        public void Start_NullAsTask_ThrowsException()
         {
             using (ReusableThread reusableThread = new ReusableThread())
             {
@@ -497,12 +486,12 @@ namespace ServiceHelperUnitTests
         {
             using (ReusableThread reusableThread = new ReusableThread())
             {
-                int maxWaitTime =  ((int)ReusableThreadTests.testWaitTime.TotalMilliseconds) / 2;
+                int maxWaitTime =  ((int)TestConstants.MaxWaitTime.TotalMilliseconds) / 2;
 
                 Random random = new Random();
-                int randomWaitTimeMilliseconds = random.Next(maxWaitTime - ReusableThreadTests.minWaitTimeMilliseconds) + ReusableThreadTests.minWaitTimeMilliseconds;
+                int randomWaitTimeMilliseconds = random.Next(maxWaitTime - TestConstants.MinWaitTimeMilliseconds) + TestConstants.MinWaitTimeMilliseconds;
 
-                ReusableThreadResult<bool> waitResult = new ReusableThreadResult<bool>();
+                ThreadResult<bool> waitResult = new ThreadResult<bool>();
 
                 ThreadStart testMethod = delegate()
                 {
@@ -532,17 +521,17 @@ namespace ServiceHelperUnitTests
         /// ReusableThread.Wait(TimeSpan) should wait for a specified amount of time.
         /// </summary>
         [TestMethod]
-        public void Wait_ValidNumberAsTimeout_WaitsForSpecifiedTime()
+        public void Wait_ValidTimeSpanAsTimeout_WaitsForSpecifiedTime()
         {
             using (ReusableThread reusableThread = new ReusableThread())
             {
-                int maxWaitTime = ((int)ReusableThreadTests.testWaitTime.TotalMilliseconds) / 2;
+                int maxWaitTime = ((int)TestConstants.MaxWaitTime.TotalMilliseconds) / 2;
 
                 Random random = new Random();
-                int randomWaitTimeMilliseconds = random.Next(maxWaitTime - ReusableThreadTests.minWaitTimeMilliseconds) + ReusableThreadTests.minWaitTimeMilliseconds;
+                int randomWaitTimeMilliseconds = random.Next(maxWaitTime - TestConstants.MinWaitTimeMilliseconds) + TestConstants.MinWaitTimeMilliseconds;
                 TimeSpan randomWaitTime = TimeSpan.FromMilliseconds(randomWaitTimeMilliseconds);
 
-                ReusableThreadResult<bool> waitResult = new ReusableThreadResult<bool>();
+                ThreadResult<bool> waitResult = new ThreadResult<bool>();
 
                 ThreadStart testMethod = delegate()
                 {
@@ -591,7 +580,7 @@ namespace ServiceHelperUnitTests
         /// </summary>
         [TestMethod]
         [ExpectedException(typeof(ArgumentOutOfRangeException), "Wait accepted a negative value.")]
-        public void Wait_InvalidTimeSpanAsTimeout_ExceptionThrown()
+        public void Wait_InvalidTimeSpanAsTimeout_ThrowsException()
         {
             using (ReusableThread reusableThread = new ReusableThread())
             {
@@ -609,11 +598,11 @@ namespace ServiceHelperUnitTests
         /// ReusableThread.Wait(int) should accept a timeout of 0.
         /// </summary>
         [TestMethod]
-        public void Wait_ZeroAsMillisecondsTimeout_ExceptionNotThrown()
+        public void Wait_ZeroAsMillisecondsTimeout_DoesNotThrowException()
         {
             using (ReusableThread reusableThread = new ReusableThread())
             {
-                ReusableThreadResult<bool> waitResult = new ReusableThreadResult<bool>();
+                ThreadResult<bool> waitResult = new ThreadResult<bool>();
 
                 ThreadStart testMethod = delegate()
                 {
@@ -632,11 +621,11 @@ namespace ServiceHelperUnitTests
         /// ReusableThread.Wait(TimeSpan) should accept a timeout of TimeSpan.Zero.
         /// </summary>
         [TestMethod]
-        public void Wait_ZeroAsTimeout_ExceptionNotThrown()
+        public void Wait_ZeroAsTimeout_DoesNotThrowException()
         {
             using (ReusableThread reusableThread = new ReusableThread())
             {
-                ReusableThreadResult<bool> waitResult = new ReusableThreadResult<bool>();
+                ThreadResult<bool> waitResult = new ThreadResult<bool>();
 
                 ThreadStart testMethod = delegate()
                 {
@@ -655,7 +644,7 @@ namespace ServiceHelperUnitTests
         /// ReusableThread.Wait(int) should accept ReusableThread.InfiniteWait.
         /// </summary>
         [TestMethod]
-        public void Wait_InfiniteWaitAsMillisecondsTimeout_ExceptionNotThrown()
+        public void Wait_InfiniteWaitAsMillisecondsTimeout_DoesNotThrowException()
         {
             using (ReusableThread reusableThread = new ReusableThread())
             {
@@ -684,7 +673,7 @@ namespace ServiceHelperUnitTests
         /// ReusableThread.Wait(TimeSpan) should accept ReusableThread.InfiniteWaitTimeSpan.
         /// </summary>
         [TestMethod]
-        public void Wait_InfiniteWaitAsTimeout_ExceptionNotThrown()
+        public void Wait_InfiniteWaitAsTimeout_DoesNotThrowException()
         {
             using (ReusableThread reusableThread = new ReusableThread())
             {
@@ -728,16 +717,15 @@ namespace ServiceHelperUnitTests
             using (ManualResetEvent testMethod1CalledEvent = new ManualResetEvent(false))
             using (ManualResetEvent testMethod2CalledEvent = new ManualResetEvent(false))
             {
-                ReusableThreadResult<Thread> thread1Result = new ReusableThreadResult<Thread>();
+                ThreadResult<Thread> thread1Result = new ThreadResult<Thread>();
 
                 ThreadStart testMethod1 = delegate()
                 {
                     thread1Result.Result = Thread.CurrentThread;
                     testMethod1CalledEvent.Set();
-                    Thread.Sleep(ReusableThreadTests.testWaitTime);
                 };
 
-                ReusableThreadResult<Thread> thread2Result = new ReusableThreadResult<Thread>();
+                ThreadResult<Thread> thread2Result = new ThreadResult<Thread>();
 
                 ThreadStart testMethod2 = delegate()
                 {
@@ -747,27 +735,27 @@ namespace ServiceHelperUnitTests
 
                 reusableThread1.Start(testMethod1);
 
-                bool testMethod1Called = testMethod1CalledEvent.WaitOne(testWaitTime);
-                string testMethod1NotCalledFailMessage = string.Format("Test method 1 was not called within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethod1Called = testMethod1CalledEvent.WaitOne(TestConstants.MaxWaitTime);
+                string testMethod1NotCalledFailMessage = string.Format("Test method 1 was not called within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethod1Called, testMethod1NotCalledFailMessage);
 
-                bool testMethod1Completed = reusableThread1.Wait(ReusableThreadTests.testWaitTime);
-                string testMethod1NotCompletedFailMessage = string.Format("Test method 1 did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethod1Completed = reusableThread1.Wait(TestConstants.MaxWaitTime);
+                string testMethod1NotCompletedFailMessage = string.Format("Test method 1 did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethod1Completed, testMethod1NotCompletedFailMessage);
 
                 testMethod1CalledEvent.Reset();
                 reusableThread2.Start(testMethod2);
 
-                bool testMethod2Called = testMethod2CalledEvent.WaitOne(testWaitTime);
-                string testMethod2NotCalledFailMessage = string.Format("Test method 2 was not called within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethod2Called = testMethod2CalledEvent.WaitOne(TestConstants.MaxWaitTime);
+                string testMethod2NotCalledFailMessage = string.Format("Test method 2 was not called within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethod2Called, testMethod2NotCalledFailMessage);
 
                 // main test condition
                 string thread2SameAsThread1FailMessage = "Test method 2's thread was the same as test method 1's thread.";
                 Assert.AreNotSame(thread1Result.Result, thread2Result.Result, thread2SameAsThread1FailMessage);
 
-                bool testMethod2Completed = reusableThread2.Wait(ReusableThreadTests.testWaitTime);
-                string testMethod2NotCompletedFailMessage = string.Format("Test method 2 did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethod2Completed = reusableThread2.Wait(TestConstants.MaxWaitTime);
+                string testMethod2NotCompletedFailMessage = string.Format("Test method 2 did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethod2Completed, testMethod2NotCompletedFailMessage);
 
                 testMethod1Called = testMethod1CalledEvent.WaitOne(0);
@@ -791,15 +779,15 @@ namespace ServiceHelperUnitTests
             using (ManualResetEvent testMethod1CalledEvent = new ManualResetEvent(false))
             using (ManualResetEvent testMethod1WaitEvent = new ManualResetEvent(false))
             {
-                ReusableThreadResult<bool> testMethod1ReleasedResult = new ReusableThreadResult<bool>();
+                ThreadResult<bool> testMethod1ReleasedResult = new ThreadResult<bool>();
 
                 ThreadStart testMethod1 = delegate()
                 {
                     testMethod1CalledEvent.Set();
-                    testMethod1ReleasedResult.Result = testMethod1WaitEvent.WaitOne(ReusableThreadTests.testWaitTime);
+                    testMethod1ReleasedResult.Result = testMethod1WaitEvent.WaitOne(TestConstants.MaxWaitTime);
                 };
 
-                ReusableThreadResult<bool> testMethod2Called = new ReusableThreadResult<bool>();
+                ThreadResult<bool> testMethod2Called = new ThreadResult<bool>();
 
                 ThreadStart testMethod2 = delegate()
                 {
@@ -808,8 +796,8 @@ namespace ServiceHelperUnitTests
 
                 reusableThread.Start(testMethod1);
 
-                bool testMethod1Called = testMethod1CalledEvent.WaitOne(testWaitTime);
-                string testMethod1NotCalledFailMessage = string.Format("Test method 1 was not called within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethod1Called = testMethod1CalledEvent.WaitOne(TestConstants.MaxWaitTime);
+                string testMethod1NotCalledFailMessage = string.Format("Test method 1 was not called within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethod1Called, testMethod1NotCalledFailMessage);
 
                 try
@@ -821,11 +809,11 @@ namespace ServiceHelperUnitTests
                 {
                     testMethod1WaitEvent.Set();
 
-                    bool testMethod1Completed = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                    string testMethod1NotCompletedFailMessage = string.Format("Test method 1 did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                    bool testMethod1Completed = reusableThread.Wait(TestConstants.MaxWaitTime);
+                    string testMethod1NotCompletedFailMessage = string.Format("Test method 1 did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                     Assert.IsTrue(testMethod1Completed, testMethod1NotCompletedFailMessage);
 
-                    string threadNotReleasedFailMessage = string.Format("Test Method 1 was not released within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                    string threadNotReleasedFailMessage = string.Format("Test Method 1 was not released within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                     Assert.IsTrue(testMethod1ReleasedResult.Result, threadNotReleasedFailMessage);
 
                     string testMethod2CalledFailMessage = "Test method 2 was called when only test method 1 should have been called.";
@@ -845,18 +833,18 @@ namespace ServiceHelperUnitTests
             {
                 ThreadStart testMethod1 = delegate()
                 {
-                    throw new ReusableThreadTestException();
+                    throw new TestException();
                 };
 
                 ThreadStart testMethod2 = delegate()
                 {
-                    testMethod2WaitEvent.WaitOne(ReusableThreadTests.testWaitTime);
+                    testMethod2WaitEvent.WaitOne(TestConstants.MaxWaitTime);
                 };
 
                 reusableThread.Start(testMethod1);
 
-                bool testMethod1Completed = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string testMethod1NotCompletedFailMessage = string.Format("Test method 1 did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethod1Completed = reusableThread.Wait(TestConstants.MaxWaitTime);
+                string testMethod1NotCompletedFailMessage = string.Format("Test method 1 did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethod1Completed, testMethod1NotCompletedFailMessage);
 
                 reusableThread.Start(testMethod2);
@@ -867,8 +855,8 @@ namespace ServiceHelperUnitTests
 
                 testMethod2WaitEvent.Set();
 
-                bool testMethod2Completed = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string testMethod2NotCompletedFailMessage = string.Format("Test method 2 did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethod2Completed = reusableThread.Wait(TestConstants.MaxWaitTime);
+                string testMethod2NotCompletedFailMessage = string.Format("Test method 2 did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethod2Completed, testMethod2NotCompletedFailMessage);
             }
         }
@@ -889,8 +877,8 @@ namespace ServiceHelperUnitTests
             {
                 reusableThread.Start(testMethod);
 
-                bool testMethodCompleted = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethodCompleted = reusableThread.Wait(TestConstants.MaxWaitTime);
+                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethodCompleted, testMethodNotCompletedFailMessage);
             }
             finally
@@ -915,8 +903,8 @@ namespace ServiceHelperUnitTests
             using (ReusableThread reusableThread = new ReusableThread())
             {
                 // main test condition
-                bool waitCompleted = reusableThread.Wait(ReusableThreadTests.minWaitTimeMilliseconds);
-                string waitTimedOutFailMessage = string.Format("The wait timed out after {0} milliseconds.", ReusableThreadTests.minWaitTimeMilliseconds);
+                bool waitCompleted = reusableThread.Wait(TestConstants.MinWaitTimeMilliseconds);
+                string waitTimedOutFailMessage = string.Format("The wait timed out after {0} milliseconds.", TestConstants.MinWaitTimeMilliseconds);
                 Assert.IsTrue(waitCompleted, waitTimedOutFailMessage);
             }
         }
@@ -935,13 +923,13 @@ namespace ServiceHelperUnitTests
 
                 reusableThread.Start(testMethod);
 
-                bool testMethodCompleted = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethodCompleted = reusableThread.Wait(TestConstants.MaxWaitTime);
+                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethodCompleted, testMethodNotCompletedFailMessage);
 
                 // main test condition
-                bool waitCompleted = reusableThread.Wait(ReusableThreadTests.minWaitTimeMilliseconds);
-                string waitTimedOutFailMessage = string.Format("The wait timed out after {0} milliseconds.", ReusableThreadTests.minWaitTimeMilliseconds);
+                bool waitCompleted = reusableThread.Wait(TestConstants.MinWaitTimeMilliseconds);
+                string waitTimedOutFailMessage = string.Format("The wait timed out after {0} milliseconds.", TestConstants.MinWaitTimeMilliseconds);
                 Assert.IsTrue(waitCompleted, waitTimedOutFailMessage);
             }
         }
@@ -959,37 +947,37 @@ namespace ServiceHelperUnitTests
                 ThreadStart testMethod = delegate()
                 {
                     testMethodCalledEvent.Set();
-                    Thread.Sleep(ReusableThreadTests.testWaitTime);
+                    Thread.Sleep(TestConstants.MaxWaitTime);
                 };
 
-                ReusableThreadResult<bool> waitResult = new ReusableThreadResult<bool>();
+                ThreadResult<bool> waitResult = new ThreadResult<bool>();
 
                 ThreadStart waitMethod = delegate()
                 {
-                    waitResult.Result = reusableThread.Wait(ReusableThreadTests.testWaitTime);
+                    waitResult.Result = reusableThread.Wait(TestConstants.MaxWaitTime);
                 };
 
                 Thread waitThread = new Thread(waitMethod);
 
                 reusableThread.Start(testMethod);
 
-                bool testMethodCalled = testMethodCalledEvent.WaitOne(ReusableThreadTests.testWaitTime);
-                string testMethodNotCalledFailMessage = string.Format("The test method was not called within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethodCalled = testMethodCalledEvent.WaitOne(TestConstants.MaxWaitTime);
+                string testMethodNotCalledFailMessage = string.Format("The test method was not called within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethodCalled, testMethodNotCalledFailMessage);
 
                 waitThread.Start();
                 
                 // TODO: if possible, avoid a thread sleep
-                Thread.Sleep(ReusableThreadTests.minWaitTimeMilliseconds);
+                Thread.Sleep(TestConstants.MinWaitTimeMilliseconds);
 
                 reusableThread.Abort();
 
-                bool waitThreadCompleted = waitThread.Join(ReusableThreadTests.testWaitTime);
-                string waitThreadNotCompletedFailMessage = string.Format("The wait thread failed to complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool waitThreadCompleted = waitThread.Join(TestConstants.MaxWaitTime);
+                string waitThreadNotCompletedFailMessage = string.Format("The wait thread failed to complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(waitThreadCompleted, waitThreadNotCompletedFailMessage);
 
                 // main test condition
-                string waitTimedOutFailMessage = string.Format("The wait timed out after {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                string waitTimedOutFailMessage = string.Format("The wait timed out after {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(waitResult.Result, waitTimedOutFailMessage);
             }
         }
@@ -1011,8 +999,8 @@ namespace ServiceHelperUnitTests
                 reusableThread.Start(testMethod);
 
                 // main test condition
-                bool waitResult = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string waitTimedOutFailMessage = string.Format("The wait timed out after {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool waitResult = reusableThread.Wait(TestConstants.MaxWaitTime);
+                string waitTimedOutFailMessage = string.Format("The wait timed out after {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(waitResult, waitTimedOutFailMessage);
             }
         }
@@ -1032,8 +1020,8 @@ namespace ServiceHelperUnitTests
             {
                 reusableThread.Start(testMethod);
 
-                bool testMethodCompleted = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethodCompleted = reusableThread.Wait(TestConstants.MaxWaitTime);
+                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethodCompleted, testMethodNotCompletedFailMessage);
             }
             finally
@@ -1042,8 +1030,8 @@ namespace ServiceHelperUnitTests
             }
 
             // main test condition
-            bool waitResult = reusableThread.Wait(ReusableThreadTests.minWaitTimeMilliseconds);
-            string waitTimedOutFailMessage = string.Format("The wait timed out after {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+            bool waitResult = reusableThread.Wait(TestConstants.MinWaitTimeMilliseconds);
+            string waitTimedOutFailMessage = string.Format("The wait timed out after {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
             Assert.IsTrue(waitResult, waitTimedOutFailMessage);
         }
 
@@ -1078,8 +1066,8 @@ namespace ServiceHelperUnitTests
 
                 reusableThread.Start(testMethod);
 
-                bool testMethodCompleted = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethodCompleted = reusableThread.Wait(TestConstants.MaxWaitTime);
+                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethodCompleted, testMethodNotCompletedFailMessage);
 
                 // main test condition (exception not thrown)
@@ -1103,8 +1091,8 @@ namespace ServiceHelperUnitTests
             {
                 reusableThread.Start(testMethod);
 
-                bool testMethodCompleted = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                bool testMethodCompleted = reusableThread.Wait(TestConstants.MaxWaitTime);
+                string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                 Assert.IsTrue(testMethodCompleted, testMethodNotCompletedFailMessage);
             }
             finally
@@ -1131,11 +1119,11 @@ namespace ServiceHelperUnitTests
         {
             using (ManualResetEvent testMethodWaitEvent = new ManualResetEvent(false))
             {
-                ReusableThreadResult<bool> testMethodReleasedResult = new ReusableThreadResult<bool>();
+                ThreadResult<bool> testMethodReleasedResult = new ThreadResult<bool>();
 
                 ThreadStart startMethod = delegate()
                 {
-                    testMethodReleasedResult.Result = testMethodWaitEvent.WaitOne(ReusableThreadTests.testWaitTime);
+                    testMethodReleasedResult.Result = testMethodWaitEvent.WaitOne(TestConstants.MaxWaitTime);
                 };
 
                 reusableThread.Start(startMethod);
@@ -1148,35 +1136,14 @@ namespace ServiceHelperUnitTests
                 {
                     testMethodWaitEvent.Set();
 
-                    bool testMethodCompleted = reusableThread.Wait(ReusableThreadTests.testWaitTime);
-                    string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                    bool testMethodCompleted = reusableThread.Wait(TestConstants.MaxWaitTime);
+                    string testMethodNotCompletedFailMessage = string.Format("The test method did not complete within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                     Assert.IsTrue(testMethodCompleted, testMethodNotCompletedFailMessage);
 
-                    string threadNotReleasedFailMessage = string.Format("The thread was not released within the timeout of {0} seconds.", ReusableThreadTests.testWaitTime.TotalSeconds);
+                    string threadNotReleasedFailMessage = string.Format("The thread was not released within the timeout of {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
                     Assert.IsTrue(testMethodReleasedResult.Result, threadNotReleasedFailMessage);
                 }
             }
-        }
-
-        #endregion
-
-        #region Support Classes
-
-        /// <summary>
-        /// Provides a way to pass results across threads. This is required because assert calls on threads
-        /// other than the main test thread will crash the test.
-        /// </summary>
-        /// <typeparam name="T">The type of the result to be held by this object.</typeparam>
-        private sealed class ReusableThreadResult<T>
-        {
-            public T Result;
-        }
-
-        /// <summary>
-        /// Provides a unique exception type that can be thrown in test delegates passed to ReusableThread.
-        /// </summary>
-        private sealed class ReusableThreadTestException : Exception
-        {
         }
 
         #endregion

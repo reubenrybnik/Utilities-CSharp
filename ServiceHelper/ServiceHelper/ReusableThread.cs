@@ -36,10 +36,6 @@ namespace ServiceHelper
 
 #if DEBUG
         private static bool alwaysHandleExceptions;
-#else
-        // always handle exceptions in release versions of this code
-        private static bool alwaysHandleExceptions = true;
-#endif
 
         /// <summary>
         /// Call this method to ensure that exceptions on the reusable thread will always be handled
@@ -49,6 +45,10 @@ namespace ServiceHelper
         {
             ReusableThread.alwaysHandleExceptions = true;
         }
+#else
+        // always handle exceptions in release versions of this code
+        private const bool alwaysHandleExceptions = true;
+#endif
 
         #endregion
 
@@ -64,6 +64,11 @@ namespace ServiceHelper
         public Exception Exception
         {
             get { return (this.threadContext != null ? this.threadContext.Exception : null); }
+        }
+
+        public bool IsBusy
+        {
+            get { return (this.threadContext != null && !this.threadContext.IsCompleted); }
         }
 
         /// <summary>
@@ -185,7 +190,7 @@ namespace ServiceHelper
         /// Waits for the current workload to complete within the specified timeout. Wait(TimeSpan.Zero) can be
         /// called to test whether a workload is currently running.
         /// </summary>
-        /// <param name="millisecondsTimeout">The maximum amount of time to wait for the workload to complete.</param>
+        /// <param name="timeout">The maximum amount of time to wait for the workload to complete.</param>
         /// <returns><c>true</c> if the workload completes within the specified timeout or if no workload
         /// is currently running, <c>false</c> if the wait times out</returns>
         public bool Wait(TimeSpan timeout)

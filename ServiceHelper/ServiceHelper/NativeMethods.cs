@@ -1,5 +1,6 @@
 ﻿using Microsoft.Win32.SafeHandles;
 using System;
+using System.Runtime.ConstrainedExecution;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 
@@ -19,7 +20,7 @@ namespace ServiceHelper
         /// Allocates a new console for the calling process.
         /// </summary>
         /// <returns><c>true</c> if the function succeeds, <c>false otherwise</c>. To get extended
-        /// error information, call <see cref="Marshal.GetLastError"/>.</returns>
+        /// error information, call <see cref="Marshal.GetLastWin32Error" />.</returns>
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool AllocConsole();
 
@@ -27,12 +28,29 @@ namespace ServiceHelper
         /// Attaches the calling process to the console of the specified process.
         /// </summary>
         /// <param name="dwProcessId">The identifier of the process whose console is to be used or
-        /// <see cref="NativeMethods.ATTACH_PARENT_PROCESS"/> to attach to the console of the parent
+        /// <see cref="NativeMethods.ATTACH_PARENT_PROCESS" /> to attach to the console of the parent
         /// process.</param>
         /// <returns><c>true</c> if the function succeeds, <c>false otherwise</c>. To get extended
-        /// error information, call <see cref="Marshal.GetLastError"/>.</returns>
+        /// error information, call <see cref="Marshal.GetLastWin32Error" />.</returns>
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool AttachConsole(UInt32 dwProcessId);
+
+        /// <summary>
+        /// Parses a Unicode command line string and returns an array of pointers to the command line arguments,
+        /// along with a count of such arguments, in a way that is similar to the standard C run-time argv and
+        /// argc values.
+        /// </summary>
+        /// <param name="lpCmdLine">A string that contains the full command line. If this parameter is an empty string
+        /// the function returns the path to the current executable file.</param>
+        /// <param name="pNumArgs">An int that receives the number of array elements returned, similar to argc.</param>
+        /// <returns>an array of LPWSTR values, similar to argv. If the function fails, the value of
+        /// <see cref="SafeLocalAllocWStrArray.IsInvalid" /> will be <c>false</c>. To get extended error information, call
+        /// <see cref="Marshal.GetLastWin32Error" />.</returns>
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern SafeLocalAllocWStrArray CommandLineToArgvW(string lpCmdLine, out int pNumArgs);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern IntPtr LocalFree(IntPtr hLocal);
 
         /// <summary>
         /// The LogonUser function attempts to log a user on to the local computer. The local computer is the
@@ -62,7 +80,7 @@ namespace ServiceHelper
         /// 
         /// When you no longer need this handle, close it by disposing the <see cref="SafeTokenHandle" /> object.</param>
         /// <returns><c>true</c> if the function succeeds, <c>false otherwise</c>. To get extended
-        /// error information, call <see cref="Marshal.GetLastError"/>.</returns>
+        /// error information, call <see cref="Marshal.GetLastWin32Error" />.</returns>
         [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         public static extern bool LogonUser(string lpszUsername, string lpszDomain, string lpszPassword, LogonType dwLogonType, LogonProvider dwLogonProvider, out SafeTokenHandle phToken);
 
@@ -84,7 +102,7 @@ namespace ServiceHelper
         /// <param name="lpszPassword">A pointer to a null-terminated string that specifies the plaintext password
         /// for the user account specified by lpszUsername. This can be retrieved from a
         /// <see cref="System.Security.SecureString"/> object by calling
-        /// <see cref="Marshal.SecureStringToGlobalAllocUnicode"/>. Once user logon is complete, clear the string
+        /// <see cref="Marshal.SecureStringToGlobalAllocUnicode" />. Once user logon is complete, clear the string
         /// from memory by using <see cref="Marshal.ZeroFreeGlobalAllocUnicode"/>.</param>
         /// <param name="dwLogonType">The type of logon operation to perform as enumerated by the
         /// <see cref="LogonType" /> enumeration.</param>
@@ -97,7 +115,7 @@ namespace ServiceHelper
         /// 
         /// When you no longer need this handle, close it by disposing the <see cref="SafeTokenHandle" /> object.</param>
         /// <returns><c>true</c> if the function succeeds, <c>false otherwise</c>. To get extended
-        /// error information, call <see cref="Marshal.GetLastError"/>.</returns>
+        /// error information, call <see cref="Marshal.GetLastWin32Error" />.</returns>
         [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         public static extern bool LogonUser(string lpszUsername, string lpszDomain, IntPtr lpszPassword, LogonType dwLogonType, LogonProvider dwLogonProvider, out SafeTokenHandle phToken);
 
@@ -106,9 +124,147 @@ namespace ServiceHelper
         /// </summary>
         /// <param name="handle">A valid handle to an open object.</param>
         /// <returns><c>true</c> if the function succeeds, <c>false otherwise</c>. To get extended
-        /// error information, call <see cref="Marshal.GetLastError"/>.</returns>
+        /// error information, call <see cref="Marshal.GetLastWin32Error" />.</returns>
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool CloseHandle(IntPtr handle);
+
+        /// <summary>
+        /// A wrapper around a pointer to an array of Unicode strings (LPWSTR*) using a contiguous block of
+        /// memory that can be freed by a single call to LocalFree.
+        /// </summary>
+        public sealed class SafeLocalAllocWStrArray : SafeLocalAllocArray<string>
+        {
+            /// <summary>
+            /// Creates a new SafeLocalAllocWStrArray. This should only be done by P/Invoke.
+            /// </summary>
+            private SafeLocalAllocWStrArray()
+            {
+            }
+
+            /// <summary>
+            /// Returns the Unicode string referred to by an unmanaged pointer in the wrapped array.
+            /// </summary>
+            /// <param name="valuePointer">The pointer to the value to convert.</param>
+            /// <returns>the value referenced by <paramref name="valuePointer" /> as a string.</returns>
+            protected override string GetArrayValue(IntPtr valuePointer)
+            {
+                return Marshal.PtrToStringUni(valuePointer);
+            }
+        }
+
+        // This class is similar to the built-in SafeBuffer class. Major differences are:
+        // 1. This class is less safe because it does not implicitly know the length of the array it wraps.
+        // 2. The array is read-only.
+        // 3. The type parameter is not limited to value types.
+        /// <summary>
+        /// Wraps a pointer to an unmanaged array of objects that can be freed by calling LocalFree.
+        /// </summary>
+        /// <typeparam name="T">The type of the objects in the array.</typeparam>
+        public abstract class SafeLocalAllocArray<T> : SafeHandleZeroOrMinusOneIsInvalid
+        {
+            /// <summary>
+            /// Creates a new SafeLocalArray which specifies that the array should be freed when this
+            /// object is disposed or finalized.
+            /// </summary>
+            protected SafeLocalAllocArray()
+                : base(true)
+            {
+            }
+
+            /// <summary>
+            /// Converts the unmanaged object referred to by <paramref name="valuePointer" /> to a managed object
+            /// of type T.
+            /// </summary>
+            /// <param name="valuePointer">The pointer to the value to convert.</param>
+            /// <returns>the value referenced by <paramref name="valuePointer" /> as a managed object of type T.</returns>
+            protected abstract T GetArrayValue(IntPtr valuePointer);
+
+            // 
+            /// <summary>
+            /// Frees the wrapped array by calling LocalFree.
+            /// </summary>
+            /// <returns><c>true</c> if the call to LocalFree succeeds, <c>false</c> if the call fails.</returns>
+            protected override bool ReleaseHandle()
+            {
+                return (NativeMethods.LocalFree(this.handle) == IntPtr.Zero);
+            }
+
+            /// <summary>
+            /// Copies the unmanaged array to the specified managed array.
+            /// 
+            /// It is important that the length of <paramref name="array"/> be less than or equal to the length of
+            /// the unmanaged array wrapped by this object. If it is not, at best garbage will be read and at worst
+            /// an exception of type <see cref="AccessViolationException" /> will be thrown.
+            /// </summary>
+            /// <param name="array">The managed array to copy the unmanaged values to.</param>
+            /// <exception cref="ObjectDisposedException">The unmanaged array wrapped by this object has been
+            /// freed.</exception>
+            /// <exception cref="InvalidOperationException">The pointer to the unmanaged array wrapped by this object
+            /// is invalid.</exception>
+            /// <exception cref="ArgumentNullException"><paramref name="array"/> is null.</exception>
+            public void CopyTo(T[] array)
+            {
+                if (array == null)
+                {
+                    throw new ArgumentNullException("array");
+                }
+
+                this.CopyTo(array, 0, array.Length);
+            }
+
+            /// <summary>
+            /// Copies the unmanaged array to the specified managed array.
+            /// 
+            /// It is important that <paramref name="length" /> be less than or equal to the length of
+            /// the array wrapped by this object. If it is not, at best garbage will be read and at worst
+            /// an exception of type <see cref="AccessViolationException" /> will be thrown.
+            /// </summary>
+            /// <param name="array">The managed array to copy the unmanaged values to.</param>
+            /// <param name="index">The index to start at when copying to <paramref name="array" />.</param>
+            /// <param name="length">The number of items to copy to <paramref name="array" /></param>
+            /// <exception cref="ObjectDisposedException">The unmanaged array wrapped by this object has been
+            /// freed.</exception>
+            /// <exception cref="InvalidOperationException">The pointer to the unmanaged array wrapped by this object
+            /// is invalid.</exception>
+            /// <exception cref="ArgumentNullException"><paramref name="array"/> is null.</exception>
+            /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is less than zero.-or- 
+            /// <paramref name="index" /> is greater than the length of <paramref name="array"/>.-or-
+            /// <paramref name="length"/> is less than zero.</exception>
+            /// <exception cref="ArgumentException">The sum of <paramref name="index" /> and <paramref name="length" />
+            /// is greater than the length of <paramref name="array" />.</exception>
+            public void CopyTo(T[] array, int index, int length)
+            {
+                if (this.IsClosed)
+                {
+                    throw new ObjectDisposedException(this.ToString());
+                }
+                if (this.IsInvalid)
+                {
+                    throw new InvalidOperationException("This object's buffer is invalid.");
+                }
+                if (array == null)
+                {
+                    throw new ArgumentNullException("array");
+                }
+                if (index < 0 || array.Length < index)
+                {
+                    throw new ArgumentOutOfRangeException("index", "index must be a nonnegative integer that is less than array's length.");
+                }
+                if (length < 0)
+                {
+                    throw new ArgumentOutOfRangeException("length", "length must be a nonnegative integer.");
+                }
+                if (array.Length < index + length)
+                {
+                    throw new ArgumentException("length", "length is greater than the number of elements from index to the end of array.");
+                }
+
+                for (int i = 0; i < length; ++i)
+                {
+                    array[i + index] = this.GetArrayValue(Marshal.ReadIntPtr(this.handle + IntPtr.Size * i));
+                }
+            }
+        }
 
         /// <summary>
         /// Wraps a handle to a user token.
@@ -118,7 +274,10 @@ namespace ServiceHelper
             /// <summary>
             /// Creates a new SafeTokenHandle. This should only be done by P/Invoke.
             /// </summary>
-            private SafeTokenHandle() : base(true) { }
+            private SafeTokenHandle()
+                : base(true)
+            {
+            }
 
             /// <summary>
             /// Provides a <see cref="WindowsIdentity" /> object created from this user token. Depending
@@ -148,7 +307,7 @@ namespace ServiceHelper
             /// Calls <see cref="NativeMethods.CloseHandle" /> to release this user token.
             /// </summary>
             /// <returns><c>true</c> if the function succeeds, <c>false otherwise</c>. To get extended
-            /// error information, call <see cref="Marshal.GetLastError"/>.</returns>
+            /// error information, call <see cref="Marshal.GetLastWin32Error"/>.</returns>
             protected override bool ReleaseHandle()
             {
                 return NativeMethods.CloseHandle(this.handle);

@@ -94,23 +94,5 @@ namespace ServiceHelper.Properties {
                 return ((global::System.ServiceProcess.ServiceAccount)(this["DefaultServiceAccount"]));
             }
         }
-        
-        [global::System.Configuration.ApplicationScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("")]
-        public string EventLogSource {
-            get {
-                return ((string)(this["EventLogSource"]));
-            }
-        }
-        
-        [global::System.Configuration.ApplicationScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("Application")]
-        public string EventLogName {
-            get {
-                return ((string)(this["EventLogName"]));
-            }
-        }
     }
 }

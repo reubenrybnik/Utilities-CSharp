@@ -12,7 +12,7 @@ namespace SampleService
     {
         private static int Main(string[] args)
         {
-            return WindowsService<SampleService>.RunService(args);
+            return WindowsService<SampleService>.Run(args);
         }
 
         private bool sleepBeforeNextTick;

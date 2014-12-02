@@ -31,6 +31,21 @@ namespace ServiceHelper
             get { return WindowsService<T>.name; }
         }
 
+        #region Skip Console Allocation
+
+#if DEBUG
+        private static bool skipConsoleAllocation;
+
+        internal static void SkipConsoleAllocation()
+        {
+            WindowsService<T>.skipConsoleAllocation = true;
+        }
+#else
+        private const bool skipConsoleAllocation = false;
+#endif
+
+        #endregion
+
         private static void Usage()
         {
             string executable = Assembly.GetEntryAssembly().ManifestModule.Name;
@@ -74,7 +89,19 @@ namespace ServiceHelper
         /// </summary>
         /// <param name="args">The arguments to run the service with.</param>
         /// <returns>an exit code that indicates operation success or failure</returns>
-        public static int RunService(string[] args)
+        public static int Run(string[] args)
+        {
+            Arguments arguments = new Arguments(args);
+            return WindowsService<T>.Run(arguments);
+        }
+
+        /// <summary>
+        /// Called to run the service; should typically be called from the Main method of the referencing
+        /// executable.
+        /// </summary>
+        /// <param name="arguments">The arguments to run the service with.</param>
+        /// <returns>an exit code that indicates operation success or failure</returns>
+        public static int Run(Arguments arguments)
         {
             int exitCode = -1;
             bool performServiceOperation = false;
@@ -83,26 +110,24 @@ namespace ServiceHelper
 
             try
             {
-                Arguments arguments = new Arguments(args);
-
                 if (arguments.NamedArguments.Count > 0)
                 {
                     performServiceOperation =
                     (
-                        arguments.NamedArguments.Keys[0].Equals("Start", StringComparison.CurrentCultureIgnoreCase) ||
-                        arguments.NamedArguments.Keys[0].Equals("Stop", StringComparison.CurrentCultureIgnoreCase) ||
-                        arguments.NamedArguments.Keys[0].Equals("Restart", StringComparison.CurrentCultureIgnoreCase) 
+                        arguments[0].Equals("/Start", StringComparison.CurrentCultureIgnoreCase) ||
+                        arguments[0].Equals("/Stop", StringComparison.CurrentCultureIgnoreCase) ||
+                        arguments[0].Equals("/Restart", StringComparison.CurrentCultureIgnoreCase) 
                     );
 
                     performInstallOperation =
                     (
-                        arguments.NamedArguments.Keys[0].Equals("Install", StringComparison.CurrentCultureIgnoreCase) ||
-                        arguments.NamedArguments.Keys[0].Equals("Uninstall", StringComparison.CurrentCultureIgnoreCase) ||
-                        arguments.NamedArguments.Keys[0].Equals("I", StringComparison.CurrentCultureIgnoreCase) ||
-                        arguments.NamedArguments.Keys[0].Equals("U", StringComparison.CurrentCultureIgnoreCase) 
+                        arguments[0].Equals("/Install", StringComparison.CurrentCultureIgnoreCase) ||
+                        arguments[0].Equals("/Uninstall", StringComparison.CurrentCultureIgnoreCase) ||
+                        arguments[0].Equals("/I", StringComparison.CurrentCultureIgnoreCase) ||
+                        arguments[0].Equals("/U", StringComparison.CurrentCultureIgnoreCase) 
                     );
 
-                    runDebugMode = arguments.NamedArguments.Keys[0].Equals("Debug", StringComparison.CurrentCultureIgnoreCase);
+                    runDebugMode = arguments[0].Equals("/Debug", StringComparison.CurrentCultureIgnoreCase);
                 }
 
                 bool consoleAttached = false;
@@ -110,8 +135,8 @@ namespace ServiceHelper
                 if (NativeMethods.AttachConsole(NativeMethods.ATTACH_PARENT_PROCESS))
                 {
                     if (!(performServiceOperation || performInstallOperation || runDebugMode) ||
-                        arguments.NamedArguments.Contains("?") ||
-                        arguments.NamedArguments.Contains("help"))
+                        arguments.Exists("?") ||
+                        arguments.Exists("help"))
                     {
                         if (performInstallOperation)
                         {
@@ -135,7 +160,7 @@ namespace ServiceHelper
                          performInstallOperation ||
                          runDebugMode)
                 {
-                    if (!NativeMethods.AllocConsole())
+                    if (!WindowsService<T>.skipConsoleAllocation  && !NativeMethods.AllocConsole())
                     {
                         int lastError = Marshal.GetLastWin32Error();
                         throw new Win32Exception(lastError, "Failed to create a new console for debugging.");
@@ -153,7 +178,7 @@ namespace ServiceHelper
 
                 if (performServiceOperation)
                 {
-                    exitCode = WindowsService<T>.PerformOperation(arguments.NamedArguments.Keys[0].ToLower());
+                    exitCode = WindowsService<T>.PerformOperation(arguments[0]);
                 }
                 else if (performInstallOperation)
                 {
@@ -161,21 +186,21 @@ namespace ServiceHelper
                 }
                 else
                 {
-                    if (arguments.NamedArguments.Contains("EventLogSource"))
+                    if (arguments.Exists("EventLogSource"))
                     {
-                        string eventLogSource = arguments.NamedArguments["EventLogSource"];
+                        string eventLogSource = arguments["EventLogSource"];
                         EventLogTraceListener eventLogListener = new EventLogTraceListener(eventLogSource);
                         Trace.Listeners.Add(eventLogListener);
                     }
-                    else if (arguments.NamedArguments.Contains("EventLogName"))
+                    else if (arguments.Exists("EventLogName"))
                     {
-                        string eventLogName = arguments.NamedArguments["EventLogName"];
+                        string eventLogName = arguments["EventLogName"];
                         EventLog eventLog = new EventLog(eventLogName);
                         EventLogTraceListener eventLogListener = new EventLogTraceListener(eventLog);
                         Trace.Listeners.Add(eventLogListener);
                     }
 
-                    if (runDebugMode && !arguments.NamedArguments.Contains("Service"))
+                    if (runDebugMode && !arguments.Exists("Service"))
                     {
                         if (Debugger.IsAttached)
                         {
@@ -218,6 +243,8 @@ namespace ServiceHelper
 
                 try
                 {
+                    // every .NET exception has this property, but its get accessor wasn't made publicly accessible
+                    // until .NET 4.5
                     PropertyInfo hrProperty = ex.GetType().GetProperty("HResult", BindingFlags.GetProperty | BindingFlags.NonPublic);
                     int hr = (int)hrProperty.GetValue(ex, null);
                     if (hr != 0)
@@ -246,9 +273,9 @@ namespace ServiceHelper
         {
             using (ServiceController serviceController = new ServiceController(WindowsService<T>.Name))
             {
-                if (operation != "start")
+                if (!operation.Equals("/Start", StringComparison.CurrentCultureIgnoreCase))
                 {
-                    if (operation != "restart" && !serviceController.CanStop)
+                    if (!operation.Equals("/Restart", StringComparison.CurrentCultureIgnoreCase) && !serviceController.CanStop)
                     {
                         Trace.WriteLine(string.Format("The service cannot be stopped in its current state of {0}.", serviceController.Status.ToString()));
                         return Constants.ERROR_INVALID_SERVICE_CONTROL;
@@ -271,7 +298,7 @@ namespace ServiceHelper
                     Trace.WriteLine("Service stopped successfully.");
                 }
 
-                if (operation != "stop")
+                if (!operation.Equals("/Stop", StringComparison.CurrentCultureIgnoreCase))
                 {
                     if (serviceController.Status != ServiceControllerStatus.Stopped)
                     {
@@ -305,6 +332,7 @@ namespace ServiceHelper
         /// <param name="arguments">The arguments provided to the service installer.</param>
         private static void InstallService(Arguments arguments)
         {
+            arguments.Add("ServiceName", WindowsService<T>.Name);
             ManagedInstallerClass.InstallHelper(arguments.AllArguments);
         }
 
@@ -333,21 +361,21 @@ namespace ServiceHelper
                 WindowsIdentity identity = null;
                 WindowsImpersonationContext impersonationContext = null;
 
-                if (arguments.NamedArguments.Contains("UserName"))
+                if (arguments.Exists("UserName"))
                 {
                     NativeMethods.SafeTokenHandle userToken = null;
 
                     try
                     {
-                        string userName = arguments.NamedArguments["UserName"];
+                        string userName = arguments["UserName"];
 
                         string user;
                         string domain;
                         Utils.SplitDomainUserString(userName, out user, out domain);
 
-                        if (arguments.NamedArguments.Contains("Password"))
+                        if (arguments.Exists("Password"))
                         {
-                            string password = arguments.NamedArguments["Password"];
+                            string password = arguments["Password"];
 
                             if (!NativeMethods.LogonUser(user, domain, password, NativeMethods.LogonType.LOGON32_LOGON_INTERACTIVE, NativeMethods.LogonProvider.LOGON32_PROVIDER_DEFAULT, out userToken))
                             {
@@ -408,7 +436,7 @@ namespace ServiceHelper
                 using (identity)
                 using (impersonationContext)
                 {
-                    if (arguments.NamedArguments.Contains("Once"))
+                    if (arguments.Exists("Once"))
                     {
                         Console.WriteLine("Running setup...");
                         service.Setup();

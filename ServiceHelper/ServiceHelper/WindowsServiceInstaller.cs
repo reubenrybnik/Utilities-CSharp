@@ -3,7 +3,6 @@ using System.Collections;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.ServiceProcess;
-using System.Text;
 using System.Text.RegularExpressions;
 
 namespace ServiceHelper
@@ -38,7 +37,26 @@ namespace ServiceHelper
                 Console.WriteLine("Leave value blank to accept the default value for any option.");
             }
 
-            // TODO: set service name
+            // service name
+            {
+                const string optionName = "ServiceName";
+                Regex validationRegex = new Regex(@"[^/\\]{1,256}");
+                string validationMessage = "Must be between 1 and 256 characters in length and cannot contain / or \\";
+
+                if (!this.Context.Parameters.ContainsKey(optionName))
+                {
+                    throw new InvalidInstallOptionException(optionName + ": No value was provided.");
+                }
+
+                string value = this.Context.Parameters[optionName];
+
+                if(!validationRegex.IsMatch(value))
+                {
+                    throw new InvalidInstallOptionException(optionName + ": " + validationMessage);
+                }
+
+                this.serviceInstaller.ServiceName = value;
+            }
 
             // display name
             {
