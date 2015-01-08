@@ -49,6 +49,14 @@ namespace ServiceHelper
         [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         public static extern SafeLocalAllocWStrArray CommandLineToArgvW(string lpCmdLine, out int pNumArgs);
 
+        /// <summary>
+        /// Frees the specified local memory object and invalidates its handle.
+        /// </summary>
+        /// <param name="hLocal">A handle to the local memory object. This handle is returned by either the
+        /// LocalAlloc or LocalReAlloc function. It is not safe to free memory allocated with GlobalAlloc.</param>
+        /// <returns>If the function succeeds, the return value is <see cref="IntPtr.Zero" />. If the function fails,
+        /// the return value is equal to a handle to the local memory object. To get extended error information,
+        /// call <see cref="Marshal.GetLastWin32Error" />.</returns>
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern IntPtr LocalFree(IntPtr hLocal);
 
@@ -138,17 +146,30 @@ namespace ServiceHelper
             /// Creates a new SafeLocalAllocWStrArray. This should only be done by P/Invoke.
             /// </summary>
             private SafeLocalAllocWStrArray()
+                : base(true)
             {
+            }
+
+            /// <summary>
+            /// Creates a new SafeLocalallocWStrArray to wrap the specified array.
+            /// </summary>
+            /// <param name="handle">The pointer to the unmanaged array to wrap.</param>
+            /// <param name="ownHandle"><c>true</c> to release the array when this object
+            /// is disposed or finalized, <c>false</c> otherwise.</param>
+            public SafeLocalAllocWStrArray(IntPtr handle, bool ownHandle)
+                : base(ownHandle)
+            {
+                this.SetHandle(handle);
             }
 
             /// <summary>
             /// Returns the Unicode string referred to by an unmanaged pointer in the wrapped array.
             /// </summary>
-            /// <param name="valuePointer">The pointer to the value to convert.</param>
-            /// <returns>the value referenced by <paramref name="valuePointer" /> as a string.</returns>
-            protected override string GetArrayValue(IntPtr valuePointer)
+            /// <param name="index">The index of the value to retrieve.</param>
+            /// <returns>the value at the position specified by <paramref name="index" /> as a string.</returns>
+            protected override string GetArrayValue(int index)
             {
-                return Marshal.PtrToStringUni(valuePointer);
+                return Marshal.PtrToStringUni(Marshal.ReadIntPtr(this.handle + IntPtr.Size * index));
             }
         }
 
@@ -165,9 +186,11 @@ namespace ServiceHelper
             /// <summary>
             /// Creates a new SafeLocalArray which specifies that the array should be freed when this
             /// object is disposed or finalized.
+            /// <param name="ownsHandle"><c>true</c> to reliably release the handle during the finalization phase;
+            /// <c>false</c> to prevent reliable release (not recommended).</param>
             /// </summary>
-            protected SafeLocalAllocArray()
-                : base(true)
+            protected SafeLocalAllocArray(bool ownsHandle)
+                : base(ownsHandle)
             {
             }
 
@@ -175,9 +198,10 @@ namespace ServiceHelper
             /// Converts the unmanaged object referred to by <paramref name="valuePointer" /> to a managed object
             /// of type T.
             /// </summary>
-            /// <param name="valuePointer">The pointer to the value to convert.</param>
-            /// <returns>the value referenced by <paramref name="valuePointer" /> as a managed object of type T.</returns>
-            protected abstract T GetArrayValue(IntPtr valuePointer);
+            /// <param name="index">The index of the value to retrieve.</param>
+            /// <returns>the value at the position specified by <paramref name="index" /> as a managed object of
+            /// type T.</returns>
+            protected abstract T GetArrayValue(int index);
 
             // 
             /// <summary>
@@ -261,7 +285,7 @@ namespace ServiceHelper
 
                 for (int i = 0; i < length; ++i)
                 {
-                    array[i + index] = this.GetArrayValue(Marshal.ReadIntPtr(this.handle + IntPtr.Size * i));
+                    array[index + i] = this.GetArrayValue(i);
                 }
             }
         }
@@ -277,6 +301,18 @@ namespace ServiceHelper
             private SafeTokenHandle()
                 : base(true)
             {
+            }
+
+            /// <summary>
+            /// Creates a new SafeTokenHandle to wrap the specified user token.
+            /// </summary>
+            /// <param name="arrayPointer">The user token to wrap.</param>
+            /// <param name="ownHandle"><c>true</c> to close the token when this object is disposed or finalized,
+            /// <c>false</c> otherwise.</param>
+            public SafeTokenHandle(IntPtr handle, bool ownHandle)
+                : base(ownHandle)
+            {
+                this.SetHandle(handle);
             }
 
             /// <summary>

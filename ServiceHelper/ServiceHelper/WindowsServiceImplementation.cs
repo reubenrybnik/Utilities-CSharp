@@ -46,13 +46,13 @@ namespace ServiceHelper
 
         /// <summary>
         /// If <see cref="SleepBetweenTicks" /> is <c>true</c> and <see cref="TimeToNextTick" /> is
-        /// <c>TimeSpan.Zero</c>, provides the service with the amount of time to wait from the start of one tick
-        /// to the start of the next. If a tick does not complete within this time, the new tick is started
+        /// <see cref="TimeSpan.Zero" />, provides the service with the amount of time to wait from the start of one
+        /// tick to the start of the next. If a tick does not complete within this time, the new tick is started
         /// immediately after the previous tick completes. Regardless of other settings, if this is not set to
-        /// <c>TimeSpan.Zero</c> and a tick does not complete within the time specified by this property, the
-        /// <see cref="TickTimeout" /> event will be fired.
+        /// <see cref="ReusableThread.InfiniteWaitTimeSpan" /> and a tick does not complete within the time specified
+        /// by this property, the <see cref="TickTimeout" /> event will be fired.
         /// 
-        /// Default value is <c>Timeout.InfiniteTimeSpan</c>.
+        /// Default value is <see cref="ReusableThread.InfiniteWaitTimeSpan" />.
         /// </summary>
         protected internal virtual TimeSpan TimeBetweenTicks
         {
@@ -86,7 +86,7 @@ namespace ServiceHelper
         /// Logs a debug message (calls <see cref="Console.WriteLine" />).
         /// </summary>
         /// <param name="message">The message to log.</param>
-        protected void DebugLog(string message)
+        protected internal virtual void DebugLog(string message)
         {
             Console.WriteLine(message);
         }
@@ -96,7 +96,7 @@ namespace ServiceHelper
         /// </summary>
         /// <param name="format">The format of the message to log.</param>
         /// <param name="args">The objects to write using <paramref name="format" /></param>
-        protected void DebugLog(string format, params object[] args)
+        protected internal virtual void DebugLog(string format, params object[] args)
         {
             Console.WriteLine(format, args);
         }
@@ -106,7 +106,7 @@ namespace ServiceHelper
         /// </summary>
         /// <param name="format">The format of the message to log.</param>
         /// <param name="args">The objects to write using <paramref name="format" /></param>
-        protected void Log(string message)
+        protected internal virtual void Log(string message)
         {
             Trace.TraceInformation(message);
         }
@@ -116,7 +116,7 @@ namespace ServiceHelper
         /// </summary>
         /// <param name="format">The format of the message to log.</param>
         /// <param name="args">The objects to write using <paramref name="format" /></param>
-        protected void Log(string format, params object[] args)
+        protected internal virtual void Log(string format, params object[] args)
         {
             Trace.TraceInformation(format, args);
         }
@@ -126,7 +126,7 @@ namespace ServiceHelper
         /// </summary>
         /// <param name="format">The format of the message to log.</param>
         /// <param name="args">The objects to write using <paramref name="format" /></param>
-        protected void LogWarning(string message)
+        protected internal virtual void LogWarning(string message)
         {
             Trace.TraceWarning(message);
         }
@@ -136,7 +136,7 @@ namespace ServiceHelper
         /// </summary>
         /// <param name="format">The format of the message to log.</param>
         /// <param name="args">The objects to write using <paramref name="format" /></param>
-        protected void LogWarning(string format, params object[] args)
+        protected internal virtual void LogWarning(string format, params object[] args)
         {
             Trace.TraceWarning(format, args);
         }
@@ -146,7 +146,7 @@ namespace ServiceHelper
         /// </summary>
         /// <param name="format">The format of the message to log.</param>
         /// <param name="args">The objects to write using <paramref name="format" /></param>
-        protected void LogError(string message)
+        protected internal virtual void LogError(string message)
         {
             Trace.TraceError(message);
         }
@@ -156,7 +156,7 @@ namespace ServiceHelper
         /// </summary>
         /// <param name="format">The format of the message to log.</param>
         /// <param name="args">The objects to write using <paramref name="format" /></param>
-        protected void LogError(string format, params object[] args)
+        protected internal virtual void LogError(string format, params object[] args)
         {
             Trace.TraceError(format, args);
         }
@@ -327,8 +327,15 @@ namespace ServiceHelper
 
         #region Tick Timeout
 
+        /// <summary>
+        /// Subscribe to this event to receive notifications when a service loop times out.
+        /// </summary>
         protected event EventHandler<TickTimeoutEventArgs> TickTimeout;
 
+        /// <summary>
+        /// Called when a service loop timeout occurs; fires the TickTimeout event.
+        /// </summary>
+        /// <param name="e">The event args for the timeout.</param>
         internal void OnTickTimeout(TickTimeoutEventArgs e)
         {
             if (TickTimeout != null)

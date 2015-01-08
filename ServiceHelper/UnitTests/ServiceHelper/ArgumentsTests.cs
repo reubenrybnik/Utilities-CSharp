@@ -38,11 +38,11 @@ namespace ServiceHelperUnitTests
 
         private void CheckNamedArgumentHasValue(Arguments arguments, string name, string expectedValue)
         {
-            bool nameInNamedArguments = arguments.NamedArguments.ContainsKey(name);
+            bool nameInNamedArguments = arguments.Exists(name);
             string nameNotInNamedArgumentssFailMessage = string.Format("Argument {0} was not found in the named arguments collection.", name);
             Assert.IsTrue(nameInNamedArguments, nameNotInNamedArgumentssFailMessage);
 
-            string actualValue = arguments.NamedArguments[name];
+            string actualValue = arguments[name];
             string namedArgumentValueDoesNotMatch = string.Format("Argument {0} had value {1}, but expected value was {2}.", name, actualValue, expectedValue);
             Assert.AreEqual(expectedValue, actualValue, namedArgumentValueDoesNotMatch);
         }

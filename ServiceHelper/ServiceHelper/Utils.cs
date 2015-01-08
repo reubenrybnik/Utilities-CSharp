@@ -5,8 +5,16 @@ using System.Text;
 
 namespace ServiceHelper
 {
+    /// <summary>
+    /// A class containing internal utility methods that are or could be shared by multiple classes.
+    /// </summary>
     internal static class Utils
     {
+        /// <summary>
+        /// Reads a password from the console, hiding the input keystrokes.
+        /// </summary>
+        /// <param name="userName">The user name to read the password for.</param>
+        /// <returns>the password entered by the user.</returns>
         public static string ReadPasswordFromConsole(string userName)
         {
             if (string.IsNullOrEmpty(userName))
@@ -38,6 +46,11 @@ namespace ServiceHelper
             return password.ToString();
         }
 
+        /// <summary>
+        /// Reads a password from the console into a SecureString, hiding the input keystrokes.
+        /// </summary>
+        /// <param name="userName">The user name to read the password for.</param>
+        /// <returns>the password entered by the user.</returns>
         public static SecureString SecureReadPasswordFromConsole(string userName)
         {
             if (string.IsNullOrEmpty(userName))
@@ -70,6 +83,13 @@ namespace ServiceHelper
             return securePassword;
         }
 
+        /// <summary>
+        /// Given a string with both a domain and user, splits the string into a domain string and a user string.
+        /// Input strings can be in either of two forms:  domain\user or user@domain.
+        /// </summary>
+        /// <param name="domainUser">The string to be split into a domain and user name.</param>
+        /// <param name="user">The user name part of the string.</param>
+        /// <param name="domain">The domain part of the string or null if the string does not include a domain.</param>
         public static void SplitDomainUserString(string domainUser, out string user, out string domain)
         {
             if (domainUser.Contains('\\'))

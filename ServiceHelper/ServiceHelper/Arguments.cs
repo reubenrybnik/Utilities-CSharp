@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
+using System.Runtime.InteropServices;
 
 namespace ServiceHelper
 {
@@ -15,21 +17,12 @@ namespace ServiceHelper
 
         private readonly List<string> allArguments;
         private Dictionary<string, string> namedArguments;
-        private ReadOnlyDictionary<string, string> readOnlyNamedArguments;
 
-        /// <summary>
-        /// A read-only copy of a dictionary of argument names and values.
-        /// </summary>
-        public IReadOnlyDictionary<string, string> NamedArguments
+        public int Count
         {
             get
             {
-                if (this.readOnlyNamedArguments == null)
-                {
-                    this.readOnlyNamedArguments = new ReadOnlyDictionary<string, string>(this.namedArguments);
-                }
-
-                return this.readOnlyNamedArguments;
+                return this.allArguments.Count;
             }
         }
 
@@ -140,7 +133,6 @@ namespace ServiceHelper
             }
 
             this.namedArguments = namedArguments;
-            this.readOnlyNamedArguments = null;
         }
 
         /// <summary>
@@ -166,7 +158,6 @@ namespace ServiceHelper
             this.allArguments.Add(argument);
 
             this.namedArguments[name] = value;
-            this.readOnlyNamedArguments = null;
         }
 
         /// <summary>
@@ -221,6 +212,11 @@ namespace ServiceHelper
             int argc;
             using (NativeMethods.SafeLocalAllocWStrArray safeArray = NativeMethods.CommandLineToArgvW(command, out argc))
             {
+                if (safeArray.IsInvalid)
+                {
+                    throw new Win32Exception(Marshal.GetHRForLastWin32Error(), "The call to CommandLineToArgvW failed.");
+                }
+
                 string[] argv = new string[argc];
                 safeArray.CopyTo(argv);
                 return argv;

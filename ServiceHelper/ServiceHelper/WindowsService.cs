@@ -26,6 +26,9 @@ namespace ServiceHelper
         private static readonly string name = !string.IsNullOrEmpty(Properties.Settings.Default.ServiceName) ?
                                               Properties.Settings.Default.ServiceName : typeof(T).Name;
 
+        /// <summary>
+        /// The name of the service.
+        /// </summary>
         public static string Name
         {
             get { return WindowsService<T>.name; }
@@ -36,6 +39,9 @@ namespace ServiceHelper
 #if DEBUG
         private static bool skipConsoleAllocation;
 
+        /// <summary>
+        /// Called to not allocate a console when running the service in debug mode.
+        /// </summary>
         internal static void SkipConsoleAllocation()
         {
             WindowsService<T>.skipConsoleAllocation = true;
@@ -46,6 +52,9 @@ namespace ServiceHelper
 
         #endregion
 
+        /// <summary>
+        /// Provides command line usage information for this service.
+        /// </summary>
         private static void Usage()
         {
             string executable = Assembly.GetEntryAssembly().ManifestModule.Name;
@@ -66,6 +75,9 @@ namespace ServiceHelper
             Console.WriteLine("For more information on the additional parameters available for these operations, run " + executable + " <Operation> /?");
         }
 
+        /// <summary>
+        /// Provides command line usage information for installing this service.
+        /// </summary>
         private static void UsageInstall()
         {
             string executable = Assembly.GetEntryAssembly().ManifestModule.Name;
@@ -76,6 +88,9 @@ namespace ServiceHelper
             Console.WriteLine("");
         }
 
+        /// <summary>
+        /// Provides command line usage information for debugging this service.
+        /// </summary>
         private static void UsageDebug()
         {
             string executable = Assembly.GetEntryAssembly().ManifestModule.Name;
@@ -110,13 +125,13 @@ namespace ServiceHelper
 
             try
             {
-                if (arguments.NamedArguments.Count > 0)
+                if (arguments.Count > 0)
                 {
                     performServiceOperation =
                     (
                         arguments[0].Equals("/Start", StringComparison.CurrentCultureIgnoreCase) ||
                         arguments[0].Equals("/Stop", StringComparison.CurrentCultureIgnoreCase) ||
-                        arguments[0].Equals("/Restart", StringComparison.CurrentCultureIgnoreCase) 
+                        arguments[0].Equals("/Restart", StringComparison.CurrentCultureIgnoreCase)
                     );
 
                     performInstallOperation =
@@ -124,7 +139,7 @@ namespace ServiceHelper
                         arguments[0].Equals("/Install", StringComparison.CurrentCultureIgnoreCase) ||
                         arguments[0].Equals("/Uninstall", StringComparison.CurrentCultureIgnoreCase) ||
                         arguments[0].Equals("/I", StringComparison.CurrentCultureIgnoreCase) ||
-                        arguments[0].Equals("/U", StringComparison.CurrentCultureIgnoreCase) 
+                        arguments[0].Equals("/U", StringComparison.CurrentCultureIgnoreCase)
                     );
 
                     runDebugMode = arguments[0].Equals("/Debug", StringComparison.CurrentCultureIgnoreCase);
@@ -160,7 +175,7 @@ namespace ServiceHelper
                          performInstallOperation ||
                          runDebugMode)
                 {
-                    if (!WindowsService<T>.skipConsoleAllocation  && !NativeMethods.AllocConsole())
+                    if (!WindowsService<T>.skipConsoleAllocation && !NativeMethods.AllocConsole())
                     {
                         int lastError = Marshal.GetLastWin32Error();
                         throw new Win32Exception(lastError, "Failed to create a new console for debugging.");
@@ -241,19 +256,10 @@ namespace ServiceHelper
                     Trace.WriteLine("The following error occurred when attempting to perform the operation: " + ex.Message);
                 }
 
-                try
+                int hr = Marshal.GetHRForException(ex);
+                if (hr != 0)
                 {
-                    // every .NET exception has this property, but its get accessor wasn't made publicly accessible
-                    // until .NET 4.5
-                    PropertyInfo hrProperty = ex.GetType().GetProperty("HResult", BindingFlags.GetProperty | BindingFlags.NonPublic);
-                    int hr = (int)hrProperty.GetValue(ex, null);
-                    if (hr != 0)
-                    {
-                        exitCode = hr;
-                    }
-                }
-                catch
-                {
+                    exitCode = hr;
                 }
             }
             finally
@@ -473,6 +479,10 @@ namespace ServiceHelper
         private bool runAsService;
         private ReusableThread serviceTaskThread;
 
+        /// <summary>
+        /// Creates a new WindowsService object.
+        /// </summary>
+        /// <param name="runAsService"><c>true</c> if this program is being run as a service, <c>false</c> otherwise.</param>
         private WindowsService(bool runAsService)
         {
             base.ServiceName = WindowsService<T>.Name;
@@ -572,6 +582,13 @@ namespace ServiceHelper
             }
         }
 
+        /// <summary>
+        /// Waits for a service task to complete, requesting additional time to complete the operation from the
+        /// service control manager if the program is being run as a service.
+        /// </summary>
+        /// <param name="timeout">The amount of time to wait for the service task to complete.</param>
+        /// <returns><c>true</c> if the task completed within the specified timeout, <c>false</c> if it
+        /// did not</returns>
         private bool WaitForServiceTask(TimeSpan timeout)
         {
             const int waitInterval = 5 * 1000; // five seconds
@@ -601,6 +618,10 @@ namespace ServiceHelper
         private WindowsServiceImplementation serviceImplementation;
         private ManualResetEvent serviceStopEvent;
 
+        /// <summary>
+        /// Performs setup operations such as creating a new service implemenatation object and calling
+        /// Setup on it.
+        /// </summary>
         private void Setup()
         {
             this.serviceImplementation = new T();
@@ -610,6 +631,9 @@ namespace ServiceHelper
             this.serviceImplementation.SetServiceStopEvent(this.serviceStopEvent);
         }
 
+        /// <summary>
+        /// Runs the main service loop and acts as a watchdog.
+        /// </summary>
         private void ServiceLoop()
         {
             try
@@ -640,7 +664,7 @@ namespace ServiceHelper
                     if (this.serviceTaskThread.Exception != null &&
                         !(this.serviceTaskThread.Exception is ThreadAbortException))
                     {
-                        Trace.TraceError("Unhandled exception in service call:" + Environment.NewLine + this.serviceTaskThread.Exception.ToString());
+                        this.serviceImplementation.LogError("Unhandled exception in service call:" + Environment.NewLine + this.serviceTaskThread.Exception.ToString());
                     }
 
                     timeToNextTick = TimeSpan.Zero;
@@ -666,7 +690,7 @@ namespace ServiceHelper
             }
             catch (Exception ex)
             {
-                Trace.TraceError("Unhandled exception in service loop:" + Environment.NewLine + ex.ToString());
+                this.serviceImplementation.LogError("Unhandled exception in service loop:" + Environment.NewLine + ex.ToString());
                 throw;
             }
             finally
@@ -675,11 +699,17 @@ namespace ServiceHelper
             }
         }
 
+        /// <summary>
+        /// Performs tasks on each service loop such as calling Tick on the service implementation object.
+        /// </summary>
         private void Tick()
         {
             this.serviceImplementation.Tick();
         }
 
+        /// <summary>
+        /// Performs cleanup operations such as calling Cleanup and Dispose on the service implementation object.
+        /// </summary>
         private void Cleanup()
         {
             this.serviceImplementation.Cleanup();

@@ -262,7 +262,7 @@ namespace ServiceHelperUnitTests
         /// should contain ThreadAbortException.
         /// </summary>
         [TestMethod]
-        public void Abort_CalledWhileRunning_ThreadAbortedAndExceptionStored()
+        public void Abort_CalledWhileRunning_AbortsThreadAndStoresException()
         {
             using (ReusableThread reusableThread = new ReusableThread())
             using (AutoResetEvent testMethodCalledEvent = new AutoResetEvent(false))
@@ -561,7 +561,7 @@ namespace ServiceHelperUnitTests
         /// </summary>
         [TestMethod]
         [ExpectedException(typeof(ArgumentOutOfRangeException), "Wait accepted a negative value.")]
-        public void Wait_InvalidNumberAsMillisecondsTimeout_ExceptionThrown()
+        public void Wait_InvalidNumberAsMillisecondsTimeout_ThrowsException()
         {
             using(ReusableThread reusableThread = new ReusableThread())
             {
@@ -1043,7 +1043,7 @@ namespace ServiceHelperUnitTests
         /// ReusableThread.Abort should not throw an exception if it is called before a workload is run.
         /// </summary>
         [TestMethod]
-        public void Abort_CalledBeforeRunning_ExceptionNotThrown()
+        public void Abort_CalledBeforeRunning_DoesNotThrowException()
         {
             using (ReusableThread reusableThread = new ReusableThread())
             {
@@ -1056,7 +1056,7 @@ namespace ServiceHelperUnitTests
         /// ReusableThread.Abort should not throw an exception if it is called after a workload completes.
         /// </summary>
         [TestMethod]
-        public void Abort_CalledAfterRunning_ExceptionNotThrown()
+        public void Abort_CalledAfterRunning_DoesNotThrowException()
         {
             using (ReusableThread reusableThread = new ReusableThread())
             {
@@ -1080,7 +1080,7 @@ namespace ServiceHelperUnitTests
         /// disposed.
         /// </summary>
         [TestMethod]
-        public void Abort_CalledAfterDisposed_ExceptionThrown()
+        public void Abort_CalledAfterDisposed_ThrowsException()
         {
             ThreadStart testMethod = delegate()
             {
