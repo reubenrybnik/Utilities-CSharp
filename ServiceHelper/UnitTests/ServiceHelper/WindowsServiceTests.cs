@@ -2,9 +2,11 @@
 using ServiceHelper;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Linq;
+using System.Security.Principal;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,31 +21,33 @@ namespace ServiceHelperUnitTests
         // class variables
         private static TextReader originalConsoleIn;
         private static ReusableThread reusableThread;
+        private static AnonymousPipeClientStream consoleInClientPipe;
         private static StreamWriter consoleInWriter;
 
         // test variables
         private static TestDelegate testMethod;
+        private static EventHandler<TickTimeoutEventArgs> tickTimeoutEvent;
         private static ImplementationMethod lastMethodCalled;
-        private static ManualResetEvent methodCalledEvent;
-        private static AutoResetEvent methodWaitEvent;
         private static bool sleepBetweenTicks;
         private static TimeSpan timeToNextTick;
         private static TimeSpan timeBetweenTicks;
+        private static ManualResetEvent methodCalledEvent;
+        private static AutoResetEvent methodWaitEvent;
 
         [ClassInitialize]
         public static void ClassInitialize(TestContext context)
         {
             WindowsServiceTests.reusableThread = new ReusableThread("Test Thread");
 
-            WindowsService<MockServiceImplementation>.SkipConsoleAllocation();
+            WindowsService<MockServiceImplementation>.SetTestMode();
             WindowsServiceTests.originalConsoleIn = Console.In;
 
             AnonymousPipeServerStream consoleInServerPipe = new AnonymousPipeServerStream(PipeDirection.Out);
             WindowsServiceTests.consoleInWriter = new StreamWriter(consoleInServerPipe);
             consoleInWriter.AutoFlush = true;
 
-            AnonymousPipeClientStream consoleInClientPipe = new AnonymousPipeClientStream(PipeDirection.In, consoleInServerPipe.ClientSafePipeHandle);
-            Console.SetIn(new StreamReader(consoleInClientPipe));
+            WindowsServiceTests.consoleInClientPipe = new AnonymousPipeClientStream(PipeDirection.In, consoleInServerPipe.ClientSafePipeHandle);
+            Console.SetIn(new StreamReader(WindowsServiceTests.consoleInClientPipe));
 
             WindowsServiceTests.methodCalledEvent = new ManualResetEvent(false);
             WindowsServiceTests.methodWaitEvent = new AutoResetEvent(false);
@@ -64,6 +68,9 @@ namespace ServiceHelperUnitTests
         [TestInitialize]
         public void TestInitialize()
         {
+            // restore all static test variables to defaults
+            WindowsServiceTests.ResetTestMethod();
+            WindowsServiceTests.tickTimeoutEvent = null;
             WindowsServiceTests.lastMethodCalled = ImplementationMethod.None;
             WindowsServiceTests.sleepBetweenTicks = false;
             WindowsServiceTests.timeToNextTick = TimeSpan.Zero;
@@ -75,7 +82,7 @@ namespace ServiceHelperUnitTests
         [TestCleanup]
         public void TestCleanup()
         {
-            if (WindowsServiceTests.reusableThread.IsBusy)
+            if (WindowsServiceTests.reusableThread.Wait(TestConstants.MinWaitTime))
             {
                 WindowsServiceTests.reusableThread.Abort();
 
@@ -86,6 +93,9 @@ namespace ServiceHelperUnitTests
             }
 
             WindowsServiceTests.ReleaseMethod();
+
+            // TODO: either find a way to make sure that no data remains in Console.In or
+            // move class initialize and cleanup for Console.In to test initialize and cleanup
         }
 
         [TestMethod]
@@ -94,6 +104,10 @@ namespace ServiceHelperUnitTests
             const string command = "/debug /once";
 
             WindowsServiceTests.StartBasicTest(command);
+
+            // ctor
+            WindowsServiceTests.CheckMethodCalled(ImplementationMethod.Ctor);
+            WindowsServiceTests.ReleaseMethod();
 
             // setup
             WindowsServiceTests.CheckMethodCalled(ImplementationMethod.Setup);
@@ -120,6 +134,10 @@ namespace ServiceHelperUnitTests
 
             WindowsServiceTests.StartBasicTest(command);
 
+            // ctor
+            WindowsServiceTests.CheckMethodCalled(ImplementationMethod.Ctor);
+            WindowsServiceTests.ReleaseMethod();
+
             // setup
             WindowsServiceTests.CheckMethodCalled(ImplementationMethod.Setup);
 
@@ -129,7 +147,7 @@ namespace ServiceHelperUnitTests
             WindowsServiceTests.testMethod = delegate(MockServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
             {
                 serviceStopEvent.Result = serviceImplementation.ServiceStopEvent;
-                WindowsServiceTests.MethodCalled(implementationMethod);
+                WindowsServiceTests.MethodCalled(serviceImplementation, implementationMethod);
             };
 
             for (int i = 0; i < tickCount; ++i)
@@ -144,7 +162,7 @@ namespace ServiceHelperUnitTests
             string serviceNotStoppedFailMessage = string.Format("The service was not stopped within {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
             Assert.IsTrue(serviceStopped, serviceNotStoppedFailMessage);
 
-            WindowsServiceTests.testMethod = null;
+            WindowsServiceTests.ResetTestMethod();
             WindowsServiceTests.ReleaseMethod();
 
             // cleanup
@@ -160,16 +178,195 @@ namespace ServiceHelperUnitTests
         [Ignore]
         public void Run_DebugUserName_Impersonates()
         {
+            // this test requires a correct user name and password, which may differ on different machines
+            // or in different domains and is likely sensitive information that should not be checked in
+            const string userName = "TestAccount";
+            const string password = "FILL IN";
+            const string command = "/debug /once /username:\"" + userName + "\" /password:\"" + password + "\"";
+
+            ThreadResult<WindowsIdentity> threadIdentity = new ThreadResult<WindowsIdentity>();
+
+            WindowsServiceTests.testMethod = delegate(MockServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
+            {
+                threadIdentity.Result = WindowsIdentity.GetCurrent();
+                WindowsServiceTests.MethodCalled(serviceImplementation, implementationMethod);
+            };
+
+            WindowsServiceTests.StartBasicTest(command);
+
+            // ctor
+            WindowsServiceTests.CheckMethodCalled(ImplementationMethod.Ctor);
+            Assert.AreEqual(userName, threadIdentity.Result.Name, true);
+            threadIdentity.Result.Dispose();
+            threadIdentity.Result = null;
+            WindowsServiceTests.ReleaseMethod();
+
+            // setup
+            WindowsServiceTests.CheckMethodCalled(ImplementationMethod.Setup);
+            Assert.AreEqual(userName, threadIdentity.Result.Name, true);
+            threadIdentity.Result.Dispose();
+            threadIdentity.Result = null;
+            WindowsServiceTests.ReleaseMethod();
+
+            // tick
+            WindowsServiceTests.CheckMethodCalled(ImplementationMethod.Tick);
+            Assert.AreEqual(userName, threadIdentity.Result.Name, true);
+            threadIdentity.Result.Dispose();
+            threadIdentity.Result = null;
+            WindowsServiceTests.ReleaseMethod();
+
+            // cleanup
+            WindowsServiceTests.CheckMethodCalled(ImplementationMethod.Cleanup);
+            Assert.AreEqual(userName, threadIdentity.Result.Name, true);
+            threadIdentity.Result.Dispose();
+            threadIdentity.Result = null;
+            WindowsServiceTests.ReleaseMethod();
+
+            // dispose
+            WindowsServiceTests.CheckMethodCalled(ImplementationMethod.Dispose);
+            Assert.AreEqual(userName, threadIdentity.Result.Name, true);
+            threadIdentity.Result.Dispose();
+            threadIdentity.Result = null;
+            WindowsServiceTests.ReleaseMethod();
         }
 
         [TestMethod]
         public void TimeToNextTick_Valid_Waits()
         {
+            const string command = "/debug";
+            const int maxWaitTime = TestConstants.MaxWaitTimeMilliseconds / 2;
+
+            Random random = new Random();
+            int randomWaitTimeMilliseconds = random.Next(maxWaitTime - TestConstants.MinWaitTimeMilliseconds) + TestConstants.MinWaitTimeMilliseconds;
+            TimeSpan randomWaitTime = TimeSpan.FromMilliseconds(randomWaitTimeMilliseconds);
+            WindowsServiceTests.timeToNextTick = randomWaitTime;
+            WindowsServiceTests.sleepBetweenTicks = true;
+
+            ImplementationMethod targetMethod = ImplementationMethod.Tick;
+
+            WindowsServiceTests.testMethod = delegate(MockServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
+            {
+                if (implementationMethod == targetMethod)
+                {
+                    WindowsServiceTests.MethodCalled(serviceImplementation, implementationMethod);
+                }
+            };
+
+            WindowsServiceTests.StartBasicTest(command);
+
+            WindowsServiceTests.CheckMethodCalled(ImplementationMethod.Tick);
+
+            Stopwatch waitTimeStopwatch = new Stopwatch();
+            waitTimeStopwatch.Start();
+
+            WindowsServiceTests.ReleaseMethod();
+            WindowsServiceTests.CheckMethodCalled(ImplementationMethod.Tick);
+
+            waitTimeStopwatch.Stop();
+            WindowsServiceTests.EndServiceLoop();
+            WindowsServiceTests.ReleaseMethod();
+
+            // main test condition
+            bool waitedAtLeastWaitTime = (waitTimeStopwatch.ElapsedMilliseconds > randomWaitTimeMilliseconds);
+            string didNotWaitAtLeastWaitTimeFailMessage = string.Format("A wait of at least {0} milliseconds was expected, but a wait of only {1} milliseconds was observed.", randomWaitTimeMilliseconds / 2, waitTimeStopwatch.ElapsedMilliseconds);
+            Assert.IsTrue(waitedAtLeastWaitTime, didNotWaitAtLeastWaitTimeFailMessage);
         }
 
         [TestMethod]
         public void TimeBetweenTicks_Valid_Waits()
         {
+            const string command = "/debug";
+            const int maxWaitTime = TestConstants.MaxWaitTimeMilliseconds / 2;
+
+            Random random = new Random();
+            int randomWaitTimeMilliseconds = random.Next(maxWaitTime - TestConstants.MinWaitTimeMilliseconds) + TestConstants.MinWaitTimeMilliseconds;
+            TimeSpan randomWaitTime = TimeSpan.FromMilliseconds(randomWaitTimeMilliseconds);
+            WindowsServiceTests.timeBetweenTicks = randomWaitTime;
+            WindowsServiceTests.sleepBetweenTicks = true;
+
+            ImplementationMethod targetMethod = ImplementationMethod.Tick;
+
+            WindowsServiceTests.testMethod = delegate(MockServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
+            {
+                if (implementationMethod == targetMethod)
+                {
+                    WindowsServiceTests.MethodCalled(serviceImplementation, implementationMethod);
+                }
+            };
+
+            ThreadResult<bool> tickTimeoutEventFired = new ThreadResult<bool>();
+
+            WindowsServiceTests.tickTimeoutEvent = delegate(object sender, TickTimeoutEventArgs e)
+            {
+                tickTimeoutEventFired.Result = true;
+            };
+
+            WindowsServiceTests.StartBasicTest(command);
+
+            WindowsServiceTests.CheckMethodCalled(ImplementationMethod.Tick);
+
+            Stopwatch waitTimeStopwatch = new Stopwatch();
+            waitTimeStopwatch.Start();
+
+            WindowsServiceTests.ReleaseMethod();
+            WindowsServiceTests.CheckMethodCalled(ImplementationMethod.Tick);
+
+            waitTimeStopwatch.Stop();
+            WindowsServiceTests.EndServiceLoop();
+            WindowsServiceTests.ReleaseMethod();
+
+            // main test condition
+            bool waited = (waitTimeStopwatch.ElapsedMilliseconds > randomWaitTimeMilliseconds / 2);
+            string didNotWaitFailMessage = string.Format("A wait of at least {0} milliseconds was expected, but a wait of only {1} milliseconds was observed.", randomWaitTimeMilliseconds / 2, waitTimeStopwatch.ElapsedMilliseconds);
+            Assert.IsTrue(waited, didNotWaitFailMessage);
+
+            // main test condition
+            bool waitedLessThanWaitTime = (waitTimeStopwatch.ElapsedMilliseconds <= randomWaitTimeMilliseconds);
+            string didNotWaitLessThanWaitTimeFailMessage = string.Format("A wait of no more than {0} milliseconds was expected, but a wait of {1} milliseconds was observed.", randomWaitTimeMilliseconds, waitTimeStopwatch.ElapsedMilliseconds);
+            Assert.IsTrue(waitedLessThanWaitTime, didNotWaitLessThanWaitTimeFailMessage);
+
+            string tickTimeoutEventFiredFailMessage = "The tick timeout event was fired when it was not expected to be.";
+            Assert.IsFalse(tickTimeoutEventFired.Result, tickTimeoutEventFiredFailMessage);
+        }
+
+        [TestMethod]
+        public void Tick_Timeout_TickTimeoutFired()
+        {
+            const string command = "/debug";
+
+            WindowsServiceTests.timeBetweenTicks = TestConstants.MinWaitTime;
+            WindowsServiceTests.sleepBetweenTicks = true;
+
+            using (ManualResetEvent tickWaitEvent = new ManualResetEvent(false))
+            {
+                WindowsServiceTests.tickTimeoutEvent = delegate(object sender, TickTimeoutEventArgs e)
+                {
+                    tickWaitEvent.Set();
+                };
+
+                ImplementationMethod targetMethod = ImplementationMethod.Tick;
+
+                WindowsServiceTests.testMethod = delegate(MockServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
+                {
+                    if (implementationMethod == targetMethod)
+                    {
+                        WindowsServiceTests.MethodCalled(serviceImplementation, implementationMethod);
+                    }
+                };
+
+                WindowsServiceTests.StartBasicTest(command);
+
+                WindowsServiceTests.CheckMethodCalled(ImplementationMethod.Tick);
+
+                bool tickTimeoutEventFired = tickWaitEvent.WaitOne(TestConstants.MaxWaitTime);
+
+                WindowsServiceTests.EndServiceLoop();
+                WindowsServiceTests.ReleaseMethod();
+
+                // main test condition
+                string tickTimeoutEventNotFiredFailMessage = "The tick timeout event was not fired.";
+                Assert.IsTrue(tickTimeoutEventFired, tickTimeoutEventNotFiredFailMessage);
+            }
         }
 
         [TestMethod]
@@ -198,8 +395,16 @@ namespace ServiceHelperUnitTests
             }
             catch (ServiceTaskFailedException serviceTaskFailedEx)
             {
+                // because ctor is called generically via the new() constraint, reflection is used under the hood
+                // which results in an extra TargetInvocationException inner exception
+                Exception innerException = serviceTaskFailedEx;
+                while (innerException.InnerException != null)
+                {
+                    innerException = innerException.InnerException;
+                }
+
                 string incorrectInnerExceptionFailMessage = string.Format("The thrown ServiceTaskFailedException {0} did not contain the expected exception type {1}.", serviceTaskFailedEx.ToString(), typeof(TestException).Name);
-                Assert.AreSame(testException, serviceTaskFailedEx.InnerException, incorrectInnerExceptionFailMessage);
+                Assert.AreSame(testException, innerException, incorrectInnerExceptionFailMessage);
             }
         }
 
@@ -252,7 +457,7 @@ namespace ServiceHelperUnitTests
 
             try
             {
-                WindowsServiceTests.consoleInWriter.WriteLine();
+                WindowsServiceTests.EndServiceLoop();
                 Arguments arguments = new Arguments(command);
                 WindowsService<MockServiceImplementation>.Run(arguments);
 
@@ -310,7 +515,7 @@ namespace ServiceHelperUnitTests
             WindowsServiceTests.reusableThread.Start(runMethod);
         }
 
-        private static void MethodCalled(ImplementationMethod actualMethod)
+        private static void MethodCalled(MockServiceImplementation serviceImplementation, ImplementationMethod actualMethod)
         {
             WindowsServiceTests.lastMethodCalled = actualMethod;
             WaitHandle.SignalAndWait(WindowsServiceTests.methodCalledEvent, WindowsServiceTests.methodWaitEvent);
@@ -344,6 +549,11 @@ namespace ServiceHelperUnitTests
             WindowsServiceTests.methodWaitEvent.Set();
         }
 
+        private static void ResetTestMethod()
+        {
+            WindowsServiceTests.testMethod = WindowsServiceTests.MethodCalled;
+        }
+
         private sealed class MockServiceImplementation : WindowsServiceImplementation, IDisposable
         {
             protected internal override bool SleepBetweenTicks
@@ -363,42 +573,32 @@ namespace ServiceHelperUnitTests
 
             public MockServiceImplementation()
             {
-                if (WindowsServiceTests.testMethod != null)
+                WindowsServiceTests.testMethod(this, ImplementationMethod.Ctor);
+
+                if (WindowsServiceTests.tickTimeoutEvent != null)
                 {
-                    WindowsServiceTests.testMethod(this, ImplementationMethod.Ctor);
+                    this.TickTimeout += tickTimeoutEvent;
                 }
             }
 
             protected internal override void Setup()
             {
-                this.RunTestMethod(ImplementationMethod.Setup);
+                WindowsServiceTests.testMethod(this, ImplementationMethod.Setup);
             }
 
             protected internal override void Tick()
             {
-                this.RunTestMethod(ImplementationMethod.Tick);
+                WindowsServiceTests.testMethod(this, ImplementationMethod.Tick);
             }
 
             protected internal override void Cleanup()
             {
-                this.RunTestMethod(ImplementationMethod.Cleanup);
+                WindowsServiceTests.testMethod(this, ImplementationMethod.Cleanup);
             }
 
             public void Dispose()
             {
-                this.RunTestMethod(ImplementationMethod.Dispose);
-            }
-
-            private void RunTestMethod(ImplementationMethod implementationMethod)
-            {
-                if (WindowsServiceTests.testMethod == null)
-                {
-                    WindowsServiceTests.MethodCalled(ImplementationMethod.Tick);
-                }
-                else
-                {
-                    WindowsServiceTests.testMethod(this, implementationMethod);
-                }
+                WindowsServiceTests.testMethod(this, ImplementationMethod.Dispose);
             }
         }
 

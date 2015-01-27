@@ -12,6 +12,8 @@ namespace ServiceHelperUnitTests
         /// </summary>
         public const int MinWaitTimeMilliseconds = 500;
 
+        public const int MaxWaitTimeMilliseconds = 5 * 1000;
+
         /// <summary>
         /// Tests that need to wait should do so at least this long.
         /// </summary>
@@ -20,7 +22,7 @@ namespace ServiceHelperUnitTests
         /// <summary>
         /// No test should ever wait for more than this amount of time without failing.
         /// </summary>
-        public static readonly TimeSpan MaxWaitTime = TimeSpan.FromSeconds(5);
+        public static readonly TimeSpan MaxWaitTime = TimeSpan.FromMilliseconds(TestConstants.MaxWaitTimeMilliseconds);
     }
 
     /// <summary>

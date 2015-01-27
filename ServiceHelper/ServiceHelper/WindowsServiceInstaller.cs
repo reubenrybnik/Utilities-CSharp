@@ -31,7 +31,12 @@ namespace ServiceHelper
         protected override void OnBeforeInstall(IDictionary savedState)
         {
             bool interactive = this.Context.Parameters.ContainsKey("Interactive");
+            bool quiet = this.Context.Parameters.ContainsKey("Quiet");
 
+            if (interactive && quiet)
+            {
+                throw new InvalidInstallOptionException("Both interactive and quiet were specified. These arguments are mutually exclusive.", Constants.ERROR_BAD_ARGUMENTS);
+            }
             if (interactive)
             {
                 Console.WriteLine("Leave value blank to accept the default value for any option.");
@@ -137,6 +142,11 @@ namespace ServiceHelper
                 bool logonSucceeded;
                 bool userNameInteractive = (interactive || !this.Context.Parameters.ContainsKey("UserName"));
 
+                if (userNameInteractive && quiet)
+                {
+                    throw new InvalidInstallOptionException("Input was required for user name in quiet mode.", Constants.ERROR_BAD_ARGUMENTS);
+                }
+
                 do
                 {
                     // user name
@@ -159,11 +169,15 @@ namespace ServiceHelper
                             this.Password = this.Context.Parameters["Password"];
                         }
 
-                        if (userNameInteractive)
+                        if (userNameInteractive || string.IsNullOrEmpty(this.Password))
                         {
-                            // TODO: consider possibly using a SecureString somehow
-                            // unfortunately, ServiceProcessInstaller does not accept a SecureString,
-                            // so this may not be feasible without re-implementing ServiceProcessInstaller
+                            if (quiet)
+                            {
+                                throw new InvalidInstallOptionException("Input was required for password in quiet mode.", Constants.ERROR_BAD_ARGUMENTS);
+                            }
+
+                            // this isn't secure, but since the install process is expected to be short-lived
+                            // I think that is an acceptable risk
                             this.Password = Utils.ReadPasswordFromConsole(this.Username);
                         }
 

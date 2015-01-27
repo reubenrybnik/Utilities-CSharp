@@ -39,7 +39,11 @@ namespace ServiceHelperUnitTests
             if (WindowsServiceImplementationTests.reusableThread.IsBusy)
             {
                 WindowsServiceImplementationTests.reusableThread.Abort();
-                WindowsServiceImplementationTests.reusableThread = new ReusableThread("Test Thread");
+
+                if (!WindowsServiceImplementationTests.reusableThread.Wait(TestConstants.MaxWaitTime))
+                {
+                    throw new TimeoutException(string.Format("Could not reset the reusable thread within {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds));
+                }
             }
         }
 
@@ -250,7 +254,7 @@ namespace ServiceHelperUnitTests
                 string stopEventNotSetFailMessage = "The stop event was not set.";
                 Assert.AreSame(stopEvent, base.ServiceStopEvent, stopEventNotSetFailMessage);
 
-                int maxWaitTime = ((int)TestConstants.MaxWaitTime.TotalMilliseconds) / 2;
+                const int maxWaitTime = TestConstants.MaxWaitTimeMilliseconds / 2;
 
                 Random random = new Random();
                 int randomWaitTimeMilliseconds = random.Next(maxWaitTime - TestConstants.MinWaitTimeMilliseconds) + TestConstants.MinWaitTimeMilliseconds;
@@ -290,7 +294,7 @@ namespace ServiceHelperUnitTests
                 string stopEventNotSetFailMessage = "The stop event was not set.";
                 Assert.AreSame(stopEvent, base.ServiceStopEvent, stopEventNotSetFailMessage);
 
-                int maxWaitTime = ((int)TestConstants.MaxWaitTime.TotalMilliseconds) / 2;
+                const int maxWaitTime = TestConstants.MaxWaitTimeMilliseconds / 2;
 
                 Random random = new Random();
                 int randomWaitTimeMilliseconds = random.Next(maxWaitTime - TestConstants.MinWaitTimeMilliseconds) + TestConstants.MinWaitTimeMilliseconds;
@@ -402,7 +406,7 @@ namespace ServiceHelperUnitTests
         [TestMethod]
         public void WakeOnStopRequested_StopEventNull_WaitsForSpecifiedTime()
         {
-            int maxWaitTime = ((int)TestConstants.MaxWaitTime.TotalMilliseconds) / 2;
+            const int maxWaitTime = TestConstants.MaxWaitTimeMilliseconds / 2;
 
             Random random = new Random();
             int randomWaitTimeMilliseconds = random.Next(maxWaitTime - TestConstants.MinWaitTimeMilliseconds) + TestConstants.MinWaitTimeMilliseconds;

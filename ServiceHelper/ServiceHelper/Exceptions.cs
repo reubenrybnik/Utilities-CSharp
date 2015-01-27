@@ -82,12 +82,11 @@ namespace ServiceHelper
         /// Create a new InvalidInstallOptionException with the specified message that wraps a root cause exception.
         /// </summary>
         /// <param name="message">The message to provide to code that catches this exception.</param>
-        /// <param name="innerException">The exception that provides more information on the root cause for the
-        /// exceptional circumstance.</param>
-        public InvalidInstallOptionException(string message, int hr)
+        /// <param name="hResult">The Windows HResult that represents the cause of the installation failure.</param>
+        public InvalidInstallOptionException(string message, int hResult)
             : base(message)
         {
-            this.HResult = hr;
+            this.HResult = hResult;
         }
 
         /// <summary>

@@ -34,20 +34,20 @@ namespace ServiceHelper
             get { return WindowsService<T>.name; }
         }
 
-        #region Skip Console Allocation
+        #region Test Mode
 
 #if DEBUG
-        private static bool skipConsoleAllocation;
+        private static bool testMode;
 
         /// <summary>
         /// Called to not allocate a console when running the service in debug mode.
         /// </summary>
-        internal static void SkipConsoleAllocation()
+        internal static void SetTestMode()
         {
-            WindowsService<T>.skipConsoleAllocation = true;
+            WindowsService<T>.testMode = true;
         }
 #else
-        private const bool skipConsoleAllocation = false;
+        private const bool testMode = false;
 #endif
 
         #endregion
@@ -82,10 +82,45 @@ namespace ServiceHelper
         {
             string executable = Assembly.GetEntryAssembly().ManifestModule.Name;
 
-            Console.WriteLine(executable + " /I[nstall] [/Interactive] [/StartType:<Automatic|Manual|Disabled>] [/UserName:<LocalSystem|LocalService|NetworkService|UserName> [/Password:<Password>]] [/DisplayName:<FriendlyName>] [/Description:<Description>]");
+            string userNameDefaultStatement;
+            if (Properties.Settings.Default.DefaultServiceAccount == ServiceAccount.User)
+            {
+                userNameDefaultStatement = "If this argument is not provided, the user will be prompted to enter a value.";
+            }
+            else
+            {
+                userNameDefaultStatement = "The default is " + Properties.Settings.Default.DefaultServiceAccount.ToString() + ".";
+            }
+
+            string displayNameDefault;
+            if (!string.IsNullOrEmpty(Properties.Settings.Default.DefaultServiceDisplayName))
+            {
+                displayNameDefault = Properties.Settings.Default.DefaultServiceDisplayName;
+            }
+            else
+            {
+                displayNameDefault = WindowsService<T>.Name;
+            }
+            string descriptionDefaultStatement;
+            if (!string.IsNullOrEmpty(Properties.Settings.Default.DefaultServiceDescription))
+            {
+                descriptionDefaultStatement = "The default is '" + Properties.Settings.Default.DefaultServiceDescription + "'.";
+            }
+            else
+            {
+                descriptionDefaultStatement = "By default, no description will be provided.";
+            }
+
+            Console.WriteLine(executable + " /I[nstall] [/Interactive|/Quiet] [/StartType:<Automatic|Manual|Disabled>] [/UserName:<LocalSystem|LocalService|NetworkService|UserName> [/Password:<Password>]] [/DisplayName:<FriendlyName>] [/Description:<Description>]");
             Console.WriteLine(executable + " /U[ninstall]");
             Console.WriteLine();
-            Console.WriteLine("");
+            Console.WriteLine("/Interactive - Prompt the user for each setting.");
+            Console.WriteLine("/Quiet - Fail immediately if any user input is required for any reason.");
+            Console.WriteLine("/StartType - Whether the service should start automatically, should start on user request, or should be disabled. The default is " + Properties.Settings.Default.DefaultServiceStartType.ToString() + ".");
+            Console.WriteLine("/UserName - The user or well-known service account that the service should be run as. " + userNameDefaultStatement);
+            Console.WriteLine("/Password - The password for the specified user account. If a user that is not a well-known service account is provided for the UserName argument and this argument is not supplied, the user will be prompted for the appropriate password.");
+            Console.WriteLine("/DisplayName - The friendly name for the service. The default is '" + displayNameDefault + "'.");
+            Console.WriteLine("/Description - The description to give the service or blank to provide no description. " + descriptionDefaultStatement);
         }
 
         /// <summary>
@@ -96,6 +131,11 @@ namespace ServiceHelper
             string executable = Assembly.GetEntryAssembly().ManifestModule.Name;
 
             Console.WriteLine(executable + " /Debug [/Once] [/UserName:<UserName> [/Password:<Password>]] [/LogEvents [/EventLogSource:<SourceName> | /EventLogName:<LogName>]]");
+            Console.WriteLine();
+            Console.WriteLine("/Once - If this argument is provided, the service loop will be run exactly once. Otherwise, it will be looped as if the service were running normally until enter is pressed.");
+            Console.WriteLine("/UserName - If this argument is provided, the service will be run as the specified user, otherwise it will be run as the current user. Service accounts cannot be specified.");
+            Console.WriteLine("/Password - The password for the specified user account. If UserName is provided and Password is not, the user will be prompted for the password.");
+            // TODO: figure out event logging
         }
 
         /// <summary>
@@ -175,7 +215,7 @@ namespace ServiceHelper
                          performInstallOperation ||
                          runDebugMode)
                 {
-                    if (!WindowsService<T>.skipConsoleAllocation && !NativeMethods.AllocConsole())
+                    if (!WindowsService<T>.testMode && !NativeMethods.AllocConsole())
                     {
                         int lastError = Marshal.GetLastWin32Error();
                         throw new Win32Exception(lastError, "Failed to create a new console for debugging.");
@@ -217,7 +257,7 @@ namespace ServiceHelper
 
                     if (runDebugMode && !arguments.Exists("Service"))
                     {
-                        if (Debugger.IsAttached)
+                        if (Debugger.IsAttached && !WindowsService<T>.testMode)
                         {
                             // if a debugger is attached, run the service in a separate thread so exceptions
                             // will not be handled by the main method exception handler to make finding the
@@ -246,6 +286,12 @@ namespace ServiceHelper
             }
             catch (Exception ex)
             {
+#if DEBUG
+                if (WindowsService<T>.testMode)
+                {
+                    throw;
+                }
+#endif
                 if (runDebugMode)
                 {
                     Trace.WriteLine("Unhandled exception:");
@@ -264,7 +310,14 @@ namespace ServiceHelper
             }
             finally
             {
+#if DEBUG
+                if (!WindowsService<T>.testMode)
+                {
+                    Trace.Close();
+                }
+#else
                 Trace.Close();
+#endif
             }
 
             return exitCode;

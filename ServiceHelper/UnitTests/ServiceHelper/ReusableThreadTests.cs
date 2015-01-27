@@ -486,7 +486,7 @@ namespace ServiceHelperUnitTests
         {
             using (ReusableThread reusableThread = new ReusableThread())
             {
-                int maxWaitTime =  ((int)TestConstants.MaxWaitTime.TotalMilliseconds) / 2;
+                const int maxWaitTime =  TestConstants.MaxWaitTimeMilliseconds / 2;
 
                 Random random = new Random();
                 int randomWaitTimeMilliseconds = random.Next(maxWaitTime - TestConstants.MinWaitTimeMilliseconds) + TestConstants.MinWaitTimeMilliseconds;
@@ -525,7 +525,7 @@ namespace ServiceHelperUnitTests
         {
             using (ReusableThread reusableThread = new ReusableThread())
             {
-                int maxWaitTime = ((int)TestConstants.MaxWaitTime.TotalMilliseconds) / 2;
+                const int maxWaitTime = TestConstants.MaxWaitTimeMilliseconds / 2;
 
                 Random random = new Random();
                 int randomWaitTimeMilliseconds = random.Next(maxWaitTime - TestConstants.MinWaitTimeMilliseconds) + TestConstants.MinWaitTimeMilliseconds;
