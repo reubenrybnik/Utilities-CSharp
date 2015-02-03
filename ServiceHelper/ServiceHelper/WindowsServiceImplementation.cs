@@ -60,7 +60,7 @@ namespace ServiceHelper
         }
 
         /// <summary>
-        /// Can be overridden to perform additoinal setup tasks outside of the class constructor.
+        /// Can be overridden to perform additoinal setup tasks after the instance is created.
         /// </summary>
         protected internal virtual void Setup()
         {
@@ -72,7 +72,7 @@ namespace ServiceHelper
         protected internal abstract void Tick();
 
         /// <summary>
-        /// Can be overridden to perform additional cleanup tasks outside of the Dispose method.
+        /// Can be overridden to perform additional cleanup tasks before the object is disposed.
         /// </summary>
         protected internal virtual void Cleanup()
         {

@@ -59,7 +59,7 @@ namespace ServiceHelper
             {
                 string value;
 
-                if(!this.namedArguments.TryGetValue(name, out value))
+                if (!this.namedArguments.TryGetValue(name, out value))
                 {
                     value = null;
                 }
@@ -214,7 +214,7 @@ namespace ServiceHelper
             {
                 if (safeArray.IsInvalid)
                 {
-                    throw new Win32Exception(Marshal.GetHRForLastWin32Error(), "The call to CommandLineToArgvW failed.");
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), "The call to CommandLineToArgvW failed.");
                 }
 
                 string[] argv = new string[argc];

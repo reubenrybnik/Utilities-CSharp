@@ -12,7 +12,7 @@ using System.Threading;
 namespace ServiceHelper
 {
     /// <summary>
-    /// A class for managing the installation and execution of an implementationclass written to act
+    /// A class for managing the installation and execution of an implementation class written to act
     /// as a Windows service with a method that is periodically run in a loop.
     /// </summary>
     /// <typeparam name="T">The type providing the implementation of the service; must extend

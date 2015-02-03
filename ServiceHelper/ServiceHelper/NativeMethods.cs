@@ -44,7 +44,7 @@ namespace ServiceHelper
         /// the function returns the path to the current executable file.</param>
         /// <param name="pNumArgs">An int that receives the number of array elements returned, similar to argc.</param>
         /// <returns>an array of LPWSTR values, similar to argv. If the function fails, the value of
-        /// <see cref="SafeLocalAllocWStrArray.IsInvalid" /> will be <c>false</c>. To get extended error information, call
+        /// <see cref="SafeLocalAllocWStrArray.IsInvalid" /> will be <c>true</c>. To get extended error information, call
         /// <see cref="Marshal.GetLastWin32Error" />.</returns>
         [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         public static extern SafeLocalAllocWStrArray CommandLineToArgvW(string lpCmdLine, out int pNumArgs);
@@ -178,7 +178,8 @@ namespace ServiceHelper
         // 2. The array is read-only.
         // 3. The type parameter is not limited to value types.
         /// <summary>
-        /// Wraps a pointer to an unmanaged array of objects that can be freed by calling LocalFree.
+        /// Wraps a pointer to a contiguous unmanaged array of objects that can be freed by a single call to
+        /// LocalFree on the wrapped pointer.
         /// </summary>
         /// <typeparam name="T">The type of the objects in the array.</typeparam>
         public abstract class SafeLocalAllocArray<T> : SafeHandleZeroOrMinusOneIsInvalid

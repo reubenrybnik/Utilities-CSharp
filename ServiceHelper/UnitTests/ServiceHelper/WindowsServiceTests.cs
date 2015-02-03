@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Linq;
+using System.Reflection;
 using System.Security.Principal;
 using System.Text;
 using System.Threading;
@@ -16,7 +17,7 @@ namespace ServiceHelperUnitTests
     [TestClass]
     public sealed class WindowsServiceTests
     {
-        private delegate void TestDelegate(MockServiceImplementation serviceImplementation, ImplementationMethod implementationMethod);
+        private delegate void TestDelegate(WindowsServiceImplementation serviceImplementation, ImplementationMethod implementationMethod);
 
         // class variables
         private static TextReader originalConsoleIn;
@@ -34,12 +35,14 @@ namespace ServiceHelperUnitTests
         private static ManualResetEvent methodCalledEvent;
         private static AutoResetEvent methodWaitEvent;
 
+        #region Init/Cleanup
+
         [ClassInitialize]
         public static void ClassInitialize(TestContext context)
         {
             WindowsServiceTests.reusableThread = new ReusableThread("Test Thread");
 
-            WindowsService<MockServiceImplementation>.SetTestMode();
+            WindowsService<DisposableMockServiceImplementation>.SetTestMode();
             WindowsServiceTests.originalConsoleIn = Console.In;
 
             AnonymousPipeServerStream consoleInServerPipe = new AnonymousPipeServerStream(PipeDirection.Out);
@@ -98,6 +101,10 @@ namespace ServiceHelperUnitTests
             // move class initialize and cleanup for Console.In to test initialize and cleanup
         }
 
+        #endregion
+
+        #region Functionality Tests
+
         [TestMethod]
         public void Run_DebugOnce_AllMethodsCalledOnceInOrder()
         {
@@ -124,6 +131,8 @@ namespace ServiceHelperUnitTests
             // dispose
             WindowsServiceTests.CheckMethodCalled(ImplementationMethod.Dispose);
             WindowsServiceTests.ReleaseMethod();
+
+            WindowsServiceTests.EndBasicTest();
         }
 
         [TestMethod]
@@ -144,7 +153,7 @@ namespace ServiceHelperUnitTests
             // ticks
             ThreadResult<WaitHandle> serviceStopEvent = new ThreadResult<WaitHandle>();
 
-            WindowsServiceTests.testMethod = delegate(MockServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
+            WindowsServiceTests.testMethod = delegate(WindowsServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
             {
                 serviceStopEvent.Result = serviceImplementation.ServiceStopEvent;
                 WindowsServiceTests.MethodCalled(serviceImplementation, implementationMethod);
@@ -172,6 +181,8 @@ namespace ServiceHelperUnitTests
             // dispose
             WindowsServiceTests.CheckMethodCalled(ImplementationMethod.Dispose);
             WindowsServiceTests.ReleaseMethod();
+
+            WindowsServiceTests.EndBasicTest();
         }
 
         [TestMethod]
@@ -186,7 +197,7 @@ namespace ServiceHelperUnitTests
 
             ThreadResult<WindowsIdentity> threadIdentity = new ThreadResult<WindowsIdentity>();
 
-            WindowsServiceTests.testMethod = delegate(MockServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
+            WindowsServiceTests.testMethod = delegate(WindowsServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
             {
                 threadIdentity.Result = WindowsIdentity.GetCurrent();
                 WindowsServiceTests.MethodCalled(serviceImplementation, implementationMethod);
@@ -228,6 +239,8 @@ namespace ServiceHelperUnitTests
             threadIdentity.Result.Dispose();
             threadIdentity.Result = null;
             WindowsServiceTests.ReleaseMethod();
+
+            WindowsServiceTests.EndBasicTest();
         }
 
         [TestMethod]
@@ -244,7 +257,7 @@ namespace ServiceHelperUnitTests
 
             ImplementationMethod targetMethod = ImplementationMethod.Tick;
 
-            WindowsServiceTests.testMethod = delegate(MockServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
+            WindowsServiceTests.testMethod = delegate(WindowsServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
             {
                 if (implementationMethod == targetMethod)
                 {
@@ -266,6 +279,8 @@ namespace ServiceHelperUnitTests
             WindowsServiceTests.EndServiceLoop();
             WindowsServiceTests.ReleaseMethod();
 
+            WindowsServiceTests.EndBasicTest();
+
             // main test condition
             bool waitedAtLeastWaitTime = (waitTimeStopwatch.ElapsedMilliseconds > randomWaitTimeMilliseconds);
             string didNotWaitAtLeastWaitTimeFailMessage = string.Format("A wait of at least {0} milliseconds was expected, but a wait of only {1} milliseconds was observed.", randomWaitTimeMilliseconds / 2, waitTimeStopwatch.ElapsedMilliseconds);
@@ -286,7 +301,7 @@ namespace ServiceHelperUnitTests
 
             ImplementationMethod targetMethod = ImplementationMethod.Tick;
 
-            WindowsServiceTests.testMethod = delegate(MockServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
+            WindowsServiceTests.testMethod = delegate(WindowsServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
             {
                 if (implementationMethod == targetMethod)
                 {
@@ -314,6 +329,8 @@ namespace ServiceHelperUnitTests
             waitTimeStopwatch.Stop();
             WindowsServiceTests.EndServiceLoop();
             WindowsServiceTests.ReleaseMethod();
+
+            WindowsServiceTests.EndBasicTest();
 
             // main test condition
             bool waited = (waitTimeStopwatch.ElapsedMilliseconds > randomWaitTimeMilliseconds / 2);
@@ -346,7 +363,7 @@ namespace ServiceHelperUnitTests
 
                 ImplementationMethod targetMethod = ImplementationMethod.Tick;
 
-                WindowsServiceTests.testMethod = delegate(MockServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
+                WindowsServiceTests.testMethod = delegate(WindowsServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
                 {
                     if (implementationMethod == targetMethod)
                     {
@@ -363,21 +380,26 @@ namespace ServiceHelperUnitTests
                 WindowsServiceTests.EndServiceLoop();
                 WindowsServiceTests.ReleaseMethod();
 
+                WindowsServiceTests.EndBasicTest();
+
                 // main test condition
                 string tickTimeoutEventNotFiredFailMessage = "The tick timeout event was not fired.";
                 Assert.IsTrue(tickTimeoutEventFired, tickTimeoutEventNotFiredFailMessage);
             }
         }
 
+        #endregion
+
+        #region State Tests
+
         [TestMethod]
         public void Ctor_ThrowsException_ExceptionPropagated()
         {
             const string command = "/debug";
-
-            ImplementationMethod targetMethod = ImplementationMethod.Ctor;
+            const ImplementationMethod targetMethod = ImplementationMethod.Ctor;
             TestException testException = new TestException();
 
-            WindowsServiceTests.testMethod = testMethod = delegate(MockServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
+            WindowsServiceTests.testMethod = testMethod = delegate(WindowsServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
             {
                 if (targetMethod == implementationMethod)
                 {
@@ -385,38 +407,36 @@ namespace ServiceHelperUnitTests
                 }
             };
 
-            try
-            {
-                Arguments arguments = new Arguments(command);
-                WindowsService<MockServiceImplementation>.Run(arguments);
+            WindowsServiceTests.StartBasicTest(command);
+            WindowsServiceTests.EndBasicTest();
 
-                string noExceptionFailMessage = "No exception was thrown by WindowsService.Run.";
-                Assert.Fail(noExceptionFailMessage);
-            }
-            catch (ServiceTaskFailedException serviceTaskFailedEx)
-            {
-                // because ctor is called generically via the new() constraint, reflection is used under the hood
-                // which results in an extra TargetInvocationException inner exception
-                Exception innerException = serviceTaskFailedEx;
-                while (innerException.InnerException != null)
-                {
-                    innerException = innerException.InnerException;
-                }
+            Exception exception = WindowsServiceTests.reusableThread.Exception;
 
-                string incorrectInnerExceptionFailMessage = string.Format("The thrown ServiceTaskFailedException {0} did not contain the expected exception type {1}.", serviceTaskFailedEx.ToString(), typeof(TestException).Name);
-                Assert.AreSame(testException, innerException, incorrectInnerExceptionFailMessage);
+            string noExceptionFailMessage = "No exception was thrown by WindowsService.Run.";
+            Assert.IsNotNull(exception, noExceptionFailMessage);
+
+            string incorrectExceptionTypeFailMessage = string.Format("An exception of type ServiceTaskFailedException was expected, but an exception of type {0} was thrown.", exception.GetType().Name);
+            Assert.IsInstanceOfType(exception, typeof(ServiceTaskFailedException), incorrectExceptionTypeFailMessage);
+
+            // because ctor is called generically via the new() constraint, reflection is used under the hood
+            // which results in an extra TargetInvocationException inner exception
+            while (exception.InnerException != null)
+            {
+                exception = exception.InnerException;
             }
+
+            string incorrectInnerExceptionFailMessage = string.Format("The thrown ServiceTaskFailedException {0} did not contain the expected exception of type {1}.", exception.ToString(), typeof(TestException).Name);
+            Assert.AreSame(testException, exception, incorrectInnerExceptionFailMessage);
         }
 
         [TestMethod]
         public void Setup_ThrowsException_ExceptionPropagated()
         {
             const string command = "/debug";
-
-            ImplementationMethod targetMethod = ImplementationMethod.Setup;
+            const ImplementationMethod targetMethod = ImplementationMethod.Setup;
             TestException testException = new TestException();
 
-            WindowsServiceTests.testMethod = testMethod = delegate(MockServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
+            WindowsServiceTests.testMethod = testMethod = delegate(WindowsServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
             {
                 if (targetMethod == implementationMethod)
                 {
@@ -424,30 +444,29 @@ namespace ServiceHelperUnitTests
                 }
             };
 
-            try
-            {
-                Arguments arguments = new Arguments(command);
-                WindowsService<MockServiceImplementation>.Run(arguments);
+            WindowsServiceTests.StartBasicTest(command);
+            WindowsServiceTests.EndBasicTest();
 
-                string noExceptionFailMessage = "No exception was thrown by WindowsService.Run.";
-                Assert.Fail(noExceptionFailMessage);
-            }
-            catch (ServiceTaskFailedException serviceTaskFailedEx)
-            {
-                string incorrectInnerExceptionFailMessage = string.Format("The thrown ServiceTaskFailedException {0} did not contain the expected exception type {1}.", serviceTaskFailedEx.ToString(), typeof(TestException).Name);
-                Assert.AreSame(testException, serviceTaskFailedEx.InnerException, incorrectInnerExceptionFailMessage);
-            }
+            Exception exception = WindowsServiceTests.reusableThread.Exception;
+
+            string noExceptionFailMessage = "No exception was thrown by WindowsService.Run.";
+            Assert.IsNotNull(exception, noExceptionFailMessage);
+
+                        string incorrectExceptionTypeFailMessage = string.Format("An exception of type ServiceTaskFailedException was expected, but an exception of type {0} was thrown.", exception.GetType().Name);
+            Assert.IsInstanceOfType(exception, typeof(ServiceTaskFailedException), incorrectExceptionTypeFailMessage);
+
+            string incorrectInnerExceptionFailMessage = string.Format("The thrown ServiceTaskFailedException {0} did not contain the expected exception of type {1}.", exception.ToString(), typeof(TestException).Name);
+            Assert.AreSame(testException, exception.InnerException, incorrectInnerExceptionFailMessage);
         }
 
         [TestMethod]
         public void Cleanup_ThrowsException_ExceptionPropagated()
         {
             const string command = "/debug";
-
-            ImplementationMethod targetMethod = ImplementationMethod.Cleanup;
+            const ImplementationMethod targetMethod = ImplementationMethod.Cleanup;
             TestException testException = new TestException();
 
-            WindowsServiceTests.testMethod = testMethod = delegate(MockServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
+            WindowsServiceTests.testMethod = testMethod = delegate(WindowsServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
             {
                 if (targetMethod == implementationMethod)
                 {
@@ -455,31 +474,30 @@ namespace ServiceHelperUnitTests
                 }
             };
 
-            try
-            {
-                WindowsServiceTests.EndServiceLoop();
-                Arguments arguments = new Arguments(command);
-                WindowsService<MockServiceImplementation>.Run(arguments);
+            WindowsServiceTests.EndServiceLoop();
+            WindowsServiceTests.StartBasicTest(command);
+            WindowsServiceTests.EndBasicTest();
 
-                string noExceptionFailMessage = "No exception was thrown by WindowsService.Run.";
-                Assert.Fail(noExceptionFailMessage);
-            }
-            catch (ServiceTaskFailedException serviceTaskFailedEx)
-            {
-                string incorrectInnerExceptionFailMessage = string.Format("The thrown ServiceTaskFailedException {0} did not contain the expected exception type {1}.", serviceTaskFailedEx.ToString(), typeof(TestException).Name);
-                Assert.AreSame(testException, serviceTaskFailedEx.InnerException, incorrectInnerExceptionFailMessage);
-            }
+            Exception exception = WindowsServiceTests.reusableThread.Exception;
+
+            string noExceptionFailMessage = "No exception was thrown by WindowsService.Run.";
+            Assert.IsNotNull(exception, noExceptionFailMessage);
+
+            string incorrectExceptionTypeFailMessage = string.Format("An exception of type ServiceTaskFailedException was expected, but an exception of type {0} was thrown.", exception.GetType().Name);
+            Assert.IsInstanceOfType(exception, typeof(ServiceTaskFailedException), incorrectExceptionTypeFailMessage);
+
+            string incorrectInnerExceptionFailMessage = string.Format("The thrown ServiceTaskFailedException {0} did not contain the expected exception of type {1}.", exception.ToString(), typeof(TestException).Name);
+            Assert.AreSame(testException, exception.InnerException, incorrectInnerExceptionFailMessage);
         }
 
         [TestMethod]
         public void Dispose_ThrowsException_ExceptionPropagated()
         {
             const string command = "/debug";
-
-            ImplementationMethod targetMethod = ImplementationMethod.Dispose;
+            const ImplementationMethod targetMethod = ImplementationMethod.Dispose;
             TestException testException = new TestException();
 
-            WindowsServiceTests.testMethod = testMethod = delegate(MockServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
+            WindowsServiceTests.testMethod = testMethod = delegate(WindowsServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
             {
                 if (targetMethod == implementationMethod)
                 {
@@ -487,24 +505,38 @@ namespace ServiceHelperUnitTests
                 }
             };
 
-            try
-            {
-                WindowsServiceTests.consoleInWriter.WriteLine();
-                Arguments arguments = new Arguments(command);
-                WindowsService<MockServiceImplementation>.Run(arguments);
+            WindowsServiceTests.EndServiceLoop();
+            WindowsServiceTests.StartBasicTest(command);
+            WindowsServiceTests.EndBasicTest();
 
-                string noExceptionFailMessage = "No exception was thrown by WindowsService.Run.";
-                Assert.Fail(noExceptionFailMessage);
-            }
-            catch (ServiceTaskFailedException serviceTaskFailedEx)
-            {
-                string incorrectInnerExceptionFailMessage = string.Format("The thrown ServiceTaskFailedException {0} did not contain the expected exception type {1}.", serviceTaskFailedEx.ToString(), typeof(TestException).Name);
-                Assert.AreSame(testException, serviceTaskFailedEx.InnerException, incorrectInnerExceptionFailMessage);
-            }
+            Exception exception = WindowsServiceTests.reusableThread.Exception;
+
+            string noExceptionFailMessage = "No exception was thrown by WindowsService.Run.";
+            Assert.IsNotNull(exception, noExceptionFailMessage);
+
+            string incorrectExceptionTypeFailMessage = string.Format("An exception of type ServiceTaskFailedException was expected, but an exception of type {0} was thrown.", exception.GetType().Name);
+            Assert.IsInstanceOfType(exception, typeof(ServiceTaskFailedException), incorrectExceptionTypeFailMessage);
+
+            string incorrectInnerExceptionFailMessage = string.Format("The thrown ServiceTaskFailedException {0} did not contain the expected exception of type {1}.", exception.ToString(), typeof(TestException).Name);
+            Assert.AreSame(testException, exception.InnerException, incorrectInnerExceptionFailMessage);
         }
 
-        private static void StartBasicTest(string command)
+        [TestMethod]
+        public void DebugOnce_NotDisposable_DisposeNotCalled()
         {
+            const string command = "/debug /once";
+            const ImplementationMethod targetMethod = ImplementationMethod.Dispose;
+
+            ThreadResult<bool> disposeCalled = new ThreadResult<bool>();
+
+            WindowsServiceTests.testMethod = delegate(WindowsServiceImplementation serviceImplementation, ImplementationMethod implementationMethod)
+            {
+                if (targetMethod == implementationMethod)
+                {
+                    disposeCalled.Result = true;
+                }
+            };
+
             Arguments arguments = new Arguments(command);
 
             ThreadStart runMethod = delegate()
@@ -513,9 +545,36 @@ namespace ServiceHelperUnitTests
             };
 
             WindowsServiceTests.reusableThread.Start(runMethod);
+
+            WindowsServiceTests.EndBasicTest();
         }
 
-        private static void MethodCalled(MockServiceImplementation serviceImplementation, ImplementationMethod actualMethod)
+        #endregion
+
+        #region Helpers
+
+        private static void StartBasicTest(string command)
+        {
+            Arguments arguments = new Arguments(command);
+
+            ThreadStart runMethod = delegate()
+            {
+                WindowsService<DisposableMockServiceImplementation>.Run(arguments);
+            };
+
+            WindowsServiceTests.reusableThread.Start(runMethod);
+        }
+
+        private static void EndBasicTest()
+        {
+            if (!WindowsServiceTests.reusableThread.Wait(TestConstants.MaxWaitTime))
+            {
+                string didNotCompleteFailMessage = string.Format("The service did not terminate within {0} seconds.", TestConstants.MaxWaitTime.TotalSeconds);
+                Assert.Fail(didNotCompleteFailMessage);
+            }
+        }
+
+        private static void MethodCalled(WindowsServiceImplementation serviceImplementation, ImplementationMethod actualMethod)
         {
             WindowsServiceTests.lastMethodCalled = actualMethod;
             WaitHandle.SignalAndWait(WindowsServiceTests.methodCalledEvent, WindowsServiceTests.methodWaitEvent);
@@ -554,7 +613,15 @@ namespace ServiceHelperUnitTests
             WindowsServiceTests.testMethod = WindowsServiceTests.MethodCalled;
         }
 
-        private sealed class MockServiceImplementation : WindowsServiceImplementation, IDisposable
+        #endregion
+
+        #region Classes and Enums
+
+        private class DisposableMockServiceImplementation : MockServiceImplementation, IDisposable
+        {
+        }
+
+        private class MockServiceImplementation : WindowsServiceImplementation
         {
             protected internal override bool SleepBetweenTicks
             {
@@ -611,5 +678,7 @@ namespace ServiceHelperUnitTests
             Cleanup,
             Dispose
         }
+
+        #endregion
     }
 }
